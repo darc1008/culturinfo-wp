@@ -73,7 +73,7 @@ fi
 wp --path=/var/www/html theme activate newscrunch --allow-root
 
 echo "==> Essential plugins"
-for PLUGIN in akismet contact-form-7 classic-editor yoast-seo; do
+for PLUGIN in akismet contact-form-7 classic-editor wordpress-seo; do
   if ! wp --path=/var/www/html plugin is-installed "$PLUGIN" --allow-root 2>/dev/null; then
     wp --path=/var/www/html plugin install "$PLUGIN" --allow-root
   fi
@@ -111,8 +111,37 @@ fi
 echo "==> Sample articles"
 EXISTING=$(wp --path=/var/www/html post list --post_type=post --post_status=publish --format=count --allow-root 2>/dev/null | tr -d ' ')
 if [ "${EXISTING:-0}" -lt 5 ]; then
+  # Borrar posts dummy previos (los creados sin frontmatter válido)
+  wp --path=/var/www/html post delete $(wp --path=/var/www/html post list --post_type=post --post_status=publish --format=ids --allow-root 2>/dev/null) --force --allow-root 2>/dev/null || true
+
   for FILE in /seed/articles/*.md; do
-    [ -f "$FILE" ] && echo "  + $(basename "$FILE")" && wp --path=/var/www/html post create "$FILE" --post_type=post --post_status=publish --allow-root 2>&1 | tail -1
+    [ -f "$FILE" ] || continue
+    SLUG=$(basename "$FILE" .md | sed 's/^[0-9]*-//')
+    # Parse frontmatter con grep
+    TITLE=$(awk '/^title: /{sub(/^title: /,""); gsub(/^"|"$/,""); print; exit}' "$FILE")
+    CATS=$(awk '/^categories:/{f=1; next} f && /^- /{sub(/^- /,""); gsub(/\[|\]|"/,""); print; exit}' "$FILE")
+    [ -z "$CATS" ] && CATS=$(awk '/^categories:/{f=1; next} f && /\[/{gsub(/\[|\]|"/,""); gsub(/ /,""); print; exit}' "$FILE")
+    # Si categories tiene comas separar
+    CATS_CSV=$(echo "$CATS" | tr ',' ' ' | awk '{for(i=1;i<=NF;i++) print $i}' | sort -u | tr '\n' ',' | sed 's/,$//')
+
+    echo "  + $SLUG | cat=$CATS_CSV | title=$TITLE"
+    if [ -n "$CATS_CSV" ]; then
+      wp --path=/var/www/html post create "$FILE" \
+        --post_type=post \
+        --post_status=publish \
+        --post_title="$TITLE" \
+        --post_name="$SLUG" \
+        --post_category="$CATS_CSV" \
+        --post_excerpt="" \
+        --allow-root 2>&1 | tail -1
+    else
+      wp --path=/var/www/html post create "$FILE" \
+        --post_type=post \
+        --post_status=publish \
+        --post_title="$TITLE" \
+        --post_name="$SLUG" \
+        --allow-root 2>&1 | tail -1
+    fi
   done
 fi
 
