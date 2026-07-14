@@ -1,0 +1,12 @@
+.env
+.env.local
+seed/.seeded
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/cache/
+wp-content/backup-db/
+wp-content/w3tc-config/
+wp-content/debug.log
+*.log
+.DS_Store
+Thumbs.db
