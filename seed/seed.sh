@@ -1,0 +1,89 @@
+#!/bin/bash
+# One-shot WordPress bootstrap for culturinfo.
+# Idempotent. Triggered by Coolify "Post-startup" or manually via `docker exec`.
+set -e
+
+# Wait for DB
+for i in {1..30}; do
+  wp --path=/var/www/html db check --allow-root 2>/dev/null && break
+  echo "  waiting for db..."
+  sleep 2
+done
+
+# Install WP if not installed
+if ! wp --path=/var/www/html core is-installed --allow-root 2>/dev/null; then
+  echo "==> Installing WordPress core"
+  wp --path=/var/www/html core install \
+    --url="${WP_SITEURL:-https://culturinfo.statusloop.app}" \
+    --title="${WP_TITLE:-Culturinfo}" \
+    --admin_user="${WP_ADMIN_USER:-admin}" \
+    --admin_password="${WP_ADMIN_PASSWORD}" \
+    --admin_email="${WP_ADMIN_EMAIL:-admin@culturinfo.statusloop.app}" \
+    --skip-email --allow-root
+fi
+
+echo "==> Site settings"
+wp --path=/var/www/html option update blogdescription "${WP_TAGLINE:-Periódico digital de cultura, política y actualidad}" --allow-root
+wp --path=/var/www/html option update timezone_string "America/Santo_Domingo" --allow-root
+wp --path=/var/www/html option update date_format "d/m/Y" --allow-root
+wp --path=/var/www/html option update time_format "H:i" --allow-root
+wp --path=/var/www/html option update start_of_week "1" --allow-root
+wp --path=/var/www/html option update posts_per_page "10" --allow-root
+wp --path=/var/www/html option update default_comment_status "open" --allow-root
+
+echo "==> Permalinks"
+wp --path=/var/www/html rewrite structure "/%postname%/" --allow-root
+wp --path=/var/www/html rewrite flush --hard --allow-root
+
+echo "==> Newscrunch theme"
+if ! wp --path=/var/www/html theme is-installed newscrunch --allow-root 2>/dev/null; then
+  wp --path=/var/www/html theme install "https://downloads.wordpress.org/theme/newscrunch.1.5.2.zip" --allow-root
+fi
+wp --path=/var/www/html theme activate newscrunch --allow-root
+
+echo "==> Essential plugins"
+for PLUGIN in akismet contact-form-7 classic-editor yoast-seo; do
+  if ! wp --path=/var/www/html plugin is-installed "$PLUGIN" --allow-root 2>/dev/null; then
+    wp --path=/var/www/html plugin install "$PLUGIN" --allow-root
+  fi
+  wp --path=/var/www/html plugin activate "$PLUGIN" --allow-root
+done
+wp --path=/var/www/html option update classic-editor-replace "classic" --allow-root
+wp --path=/var/www/html option update classic-editor-allow-users "allow" --allow-root
+
+echo "==> Categories"
+declare -A SECTIONS=(
+  [cultura]="Cultura"
+  [politica]="Política"
+  [economia]="Economía"
+  [tecnologia]="Tecnología"
+  [deportes]="Deportes"
+  [opinion]="Opinión"
+  [mundo]="Mundo"
+)
+for SLUG in "${!SECTIONS[@]}"; do
+  wp --path=/var/www/html term create category "${SECTIONS[$SLUG]}" --slug="$SLUG" --description="Sección de ${SECTIONS[$SLUG]}" --allow-root 2>/dev/null || true
+done
+
+echo "==> Navigation menu"
+MENU_EXISTS=$(wp --path=/var/www/html menu list --fields=term_id --allow-root 2>/dev/null | grep -c . || echo 0)
+if [ "$MENU_EXISTS" -eq 0 ]; then
+  wp --path=/var/www/html menu create "Menú Principal" --allow-root
+  for SLUG in cultura politica economia tecnologia deportes opinion mundo; do
+    CAT_ID=$(wp --path=/var/www/html term list category --slug="$SLUG" --field=term_id --allow-root 2>/dev/null | head -1)
+    [ -n "$CAT_ID" ] && wp --path=/var/www/html menu item add-post-term "Menú Principal" category "$CAT_ID" --allow-root 2>/dev/null || true
+  done
+  MENU_ID=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
+  [ -n "$MENU_ID" ] && wp --path=/var/www/html menu location assign "$MENU_ID" primary --allow-root
+fi
+
+echo "==> Sample articles"
+EXISTING=$(wp --path=/var/www/html post list --post_type=post --post_status=publish --format=count --allow-root 2>/dev/null | tr -d ' ')
+if [ "${EXISTING:-0}" -lt 5 ]; then
+  for FILE in /seed/articles/*.md; do
+    [ -f "$FILE" ] && echo "  + $(basename "$FILE")" && wp --path=/var/www/html post create "$FILE" --post_type=post --post_status=publish --allow-root 2>&1 | tail -1
+  done
+fi
+
+echo "==> ✓ Bootstrap done"
+wp --path=/var/www/html post list --post_type=post --post_status=publish --format=count --allow-root
