@@ -43,17 +43,28 @@ GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE:-culturinfo}\`.* TO '${MARIADB_USER
 GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE:-culturinfo}\`.* TO '${MARIADB_USER:-culturinfo}'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOSQL
-
 echo "[entrypoint] MariaDB ready"
 
-# Ejecutar seed (idempotente, en background) y arrancar Apache
-(
-  sleep 5
-  echo "[seed] starting..."
-  /usr/local/bin/seed.sh > /tmp/seed.log 2>&1
-  echo "[seed] done (exit $?)"
-) &
+# Generar wp-config.php (NEEDED - the image doesn't ship one for WP 6.7+)
+cd /var/www/html
+if [ ! -f wp-config.php ]; then
+  echo "[entrypoint] Creando wp-config.php..."
+  wp config create \
+    --dbhost=127.0.0.1 \
+    --dbname="${MARIADB_DATABASE:-culturinfo}" \
+    --dbuser="${MARIADB_USER:-culturinfo}" \
+    --dbpass="${MARIADB_PASSWORD}" \
+    --dbcharset=utf8mb4 \
+    --dbcollate=utf8mb4_unicode_ci \
+    --locale=es_ES \
+    --allow-root
+fi
 
-# Iniciar Apache directamente
+# Run seed (foreground, with output to stdout)
+echo "[entrypoint] Ejecutando seed..."
+/usr/local/bin/seed.sh 2>&1 | tee /tmp/seed.log
+echo "[seed] done"
+
+# Iniciar Apache
 echo "[entrypoint] Iniciando Apache..."
 exec apache2-foreground

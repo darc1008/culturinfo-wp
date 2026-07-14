@@ -12,12 +12,30 @@ export WORDPRESS_DB_USER="$DB_USER"
 export WORDPRESS_DB_PASSWORD="$DB_PASS"
 export WORDPRESS_DB_NAME="$DB_NAME"
 
+echo "==> WordPress DB target: $DB_USER@$DB_HOST/$DB_NAME"
+
+# Generate wp-config.php if missing
+cd /var/www/html
+if [ ! -f wp-config.php ]; then
+  echo "==> Creando wp-config.php"
+  wp config create \
+    --dbhost="$DB_HOST" \
+    --dbname="$DB_NAME" \
+    --dbuser="$DB_USER" \
+    --dbpass="$DB_PASS" \
+    --dbcharset=utf8mb4 \
+    --dbcollate=utf8mb4_unicode_ci \
+    --locale=es_ES \
+    --allow-root
+fi
+
 # Wait for DB
 for i in {1..30}; do
   if wp --path=/var/www/html db check --allow-root 2>/dev/null; then
     echo "  db OK"
     break
   fi
+  echo "  waiting for db ($i)..."
   sleep 2
 done
 
@@ -31,6 +49,8 @@ if ! wp --path=/var/www/html core is-installed --allow-root 2>/dev/null; then
     --admin_password="${WP_ADMIN_PASSWORD}" \
     --admin_email="${WP_ADMIN_EMAIL:-admin@culturinfo.statusloop.app}" \
     --skip-email --allow-root
+else
+  echo "==> WordPress ya instalado, saltando install"
 fi
 
 echo "==> Site settings"
