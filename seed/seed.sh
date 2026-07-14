@@ -134,16 +134,21 @@ for SLUG in "${!SECTIONS[@]}"; do
 done
 
 echo "==> Navigation menu"
-MENU_EXISTS=$(wp --path=/var/www/html menu list --fields=term_id --allow-root 2>/dev/null | grep -c . || echo 0)
-if [ "$MENU_EXISTS" -eq 0 ]; then
-  wp --path=/var/www/html menu create "Menú Principal" --allow-root
-  for SLUG in cultura politica economia tecnologia deportes opinion mundo; do
-    CAT_ID=$(wp --path=/var/www/html term list category --slug="$SLUG" --field=term_id --allow-root 2>/dev/null | head -1)
-    [ -n "$CAT_ID" ] && wp --path=/var/www/html menu item add-post-term "Menú Principal" category "$CAT_ID" --allow-root 2>/dev/null || true
-  done
-  MENU_ID=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
-  [ -n "$MENU_ID" ] && wp --path=/var/www/html menu location assign "$MENU_ID" primary --allow-root
+# Crear menu si no existe
+if ! wp --path=/var/www/html menu list --allow-root 2>/dev/null | grep -q "Menú Principal"; then
+  wp --path=/var/www/html menu create "Menú Principal" --allow-root 2>&1 | tail -1
 fi
+# Poblar menu con categorias (idempotente: si ya estan, skip)
+for SLUG in cultura politica economia tecnologia deportes opinion mundo; do
+  CAT_ID=$(wp --path=/var/www/html term list category --slug="$SLUG" --field=term_id --allow-root 2>/dev/null | head -1)
+  if [ -n "$CAT_ID" ]; then
+    # Verificar si ya esta en el menu
+    IN_MENU=$(wp --path=/var/www/html menu item list "Menú Principal" --fields=object_id --allow-root 2>/dev/null | grep -c "$CAT_ID" || echo 0)
+    if [ "$IN_MENU" -eq 0 ]; then
+      wp --path=/var/www/html menu item add-post-term "Menú Principal" category "$CAT_ID" --allow-root 2>/dev/null
+    fi
+  fi
+done
 
 parse_frontmatter() {
   local FILE="$1"
