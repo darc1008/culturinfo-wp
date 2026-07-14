@@ -145,15 +145,7 @@ if [ "$MENU_EXISTS" -eq 0 ]; then
   [ -n "$MENU_ID" ] && wp --path=/var/www/html menu location assign "$MENU_ID" primary --allow-root
 fi
 
-# Asignar menu principal también al tema ColorMag
-wp --path=/var/www/html option update colormag_default_menu "$MENU_ID" --allow-root 2>/dev/null || true
-# ColorMag usa theme_mods_colormag - activar el menu como primary
-wp --path=/var/www/html option update nav_menu_locations --format=json --allow-root "$(cat <<EOF
-{"primary":$MENU_ID}
-EOF
-)" 2>/dev/null || true
-
-parse_frontmatter() {
+echo "==> Sample articles"
   local FILE="$1"
   local FIELD="$2"
   # Extrae la primera ocurrencia de "FIELD:" y captura el valor hasta fin de línea
@@ -222,14 +214,41 @@ if [ "${EXISTING:-0}" -lt 5 ]; then
     if [ -n "$IMG_URL" ]; then
       POST_ID=$(wp --path=/var/www/html post list --post_type=post --name="$SLUG" --field=ID --allow-root 2>/dev/null | head -1)
       if [ -n "$POST_ID" ]; then
-        echo "    downloading $IMG_URL"
-        curl -sL --max-time 30 -o /tmp/feat.jpg "$IMG_URL" 2>/dev/null
-        if [ -s /tmp/feat.jpg ]; then
-          wp --path=/var/www/html media import /tmp/feat.jpg --post_id="$POST_ID" --featured_image --allow-root 2>&1 | tail -1
+        # Si ya tiene imagen destacada, saltar
+        CURRENT_THUMB=$(wp --path=/var/www/html post get "$POST_ID" --field=meta_value --meta_key=_thumbnail_id --allow-root 2>/dev/null | head -1)
+        if [ -z "$CURRENT_THUMB" ]; then
+          echo "    downloading $IMG_URL"
+          curl -sL --max-time 30 -o /tmp/feat.jpg "$IMG_URL" 2>/dev/null
+          if [ -s /tmp/feat.jpg ] && [ "$(stat -c%s /tmp/feat.jpg 2>/dev/null)" -gt 1000 ]; then
+            wp --path=/var/www/html media import /tmp/feat.jpg --post_id="$POST_ID" --featured_image --allow-root 2>&1 | tail -1
+          else
+            echo "    image too small, skipping"
+          fi
         fi
       fi
     fi
+    # Re-import post (no, ya existe - skip)
+    : # placeholder
   done
+fi
+
+# Asignar menu a la posicion 'primary' del tema ColorMag (este es el fix que faltaba)
+MENU_ID=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
+if [ -n "$MENU_ID" ]; then
+  # Borra la "Sample Page" del menu
+  SAMPLE_ID=$(wp --path=/var/www/html post list --post_type=page --name="sample-page" --field=ID --allow-root 2>/dev/null | head -1)
+  [ -n "$SAMPLE_ID" ] && wp --path=/var/www/html post delete "$SAMPLE_ID" --force --allow-root 2>/dev/null
+  # Asigna menu al tema via nav_menu_locations (JSON en option)
+  CURRENT_LOCATIONS=$(wp --path=/var/www/html option get nav_menu_locations --format=json --allow-root 2>/dev/null || echo "{}")
+  NEW_LOCATIONS=$(echo "$CURRENT_LOCATIONS" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except: d = {}
+d['primary'] = $MENU_ID
+print(json.dumps(d))
+" 2>/dev/null)
+  [ -n "$NEW_LOCATIONS" ] && echo "$NEW_LOCATIONS" | wp --path=/var/www/html option update nav_menu_locations --format=json --allow-root 2>&1 | tail -1
 fi
 
 echo "==> ✓ Bootstrap done"
