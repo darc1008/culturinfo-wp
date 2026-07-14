@@ -145,23 +145,20 @@ if [ "$MENU_EXISTS" -eq 0 ]; then
   [ -n "$MENU_ID" ] && wp --path=/var/www/html menu location assign "$MENU_ID" primary --allow-root
 fi
 
-echo "==> Sample articles"
+parse_frontmatter() {
   local FILE="$1"
   local FIELD="$2"
-  # Extrae la primera ocurrencia de "FIELD:" y captura el valor hasta fin de línea
   sed -n "/^${FIELD}:/p" "$FILE" | head -1 | sed "s/^${FIELD}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | sed "s/'$//" | sed "s/'\$//"
 }
 
 parse_categories() {
   local FILE="$1"
-  # Formato YAML: "categories: [slug1,slug2]" o "categories:\n  - slug1\n  - slug2"
   local VAL=$(parse_frontmatter "$FILE" categories)
   if [[ "$VAL" == \[* ]]; then
     echo "$VAL" | tr -d '[]' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '\n' ',' | sed 's/,$//'
   elif [[ -n "$VAL" ]]; then
     echo "$VAL"
   else
-    # Formato lista
     awk '/^categories:/{f=1; next} f && /^- /{sub(/^- /,""); gsub(/[[:space:]]/,""); print; f=0; next} f && /^[^ -]/{f=0}' "$FILE" | tr '\n' ',' | sed 's/,$//'
   fi
 }
