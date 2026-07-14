@@ -67,12 +67,12 @@ wp --path=/var/www/html rewrite structure "/%postname%/" --allow-root
 wp --path=/var/www/html rewrite flush --hard --allow-root
 
 echo "==> ColorMag theme (newspaper/magazine layout)"
-# Limpiar newscrunch
+# Limpiar newscrunch si quedó
 wp --path=/var/www/html theme uninstall newscrunch --allow-root 2>/dev/null || true
-# Instalar ColorMag
+# Instalar ColorMag (sin número de versión, wp-cli usa la última)
 if ! wp --path=/var/www/html theme is-installed colormag --allow-root 2>/dev/null; then
   echo "  Instalando ColorMag..."
-  wp --path=/var/www/html theme install "https://downloads.wordpress.org/theme/colormag.3.2.1.zip" --allow-root 2>&1 | tail -3
+  wp --path=/var/www/html theme install colormag --allow-root 2>&1 | tail -3
 fi
 wp --path=/var/www/html theme activate colormag --allow-root 2>&1 | tail -1
 
@@ -82,17 +82,15 @@ if ! wp --path=/var/www/html plugin is-installed themegrill-tools --allow-root 2
 fi
 wp --path=/var/www/html plugin activate themegrill-tools --allow-root 2>&1 | tail -1
 
-# Configuración ColorMag
+# ColorMag options via wp_options (ThemeGrill settings stored as WP options)
 wp --path=/var/www/html option update colormag_site_layout "wide_layout" --allow-root
-wp --path=/var/www/html option update colormag_primary_color "e74c3c" --allow-root  # rojo periodístico
+wp --path=/var/www/html option update colormag_primary_color "e74c3c" --allow-root
 wp --path=/var/www/html option update colormag_secondary_color "2c3e50" --allow-root
 wp --path=/var/www/html option update colormag_header_logo_placement "header_text_only" --allow-root
 wp --path=/var/www/html option update colormag_enable_featured_image_slider "1" --allow-root
 wp --path=/var/www/html option update colormag_enable_breaking_news "1" --allow-root
 wp --path=/var/www/html option update colormag_breaking_news_title "Última Hora" --allow-root
-wp --path=/var/www/html option update colormag_hide_blog_post_feature_image "" --allow-root
 wp --path=/var/www/html option update colormag_blog_post_excerpt_length "40" --allow-root
-wp --path=/var/www/html option update colormag_default_widgets "yes" --allow-root
 
 echo "==> Essential plugins"
 for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
