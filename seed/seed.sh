@@ -73,11 +73,11 @@ fi
 wp --path=/var/www/html theme activate newscrunch --allow-root
 
 echo "==> Essential plugins"
-for PLUGIN in akismet contact-form-7 classic-editor wordpress-seo; do
+for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
   if ! wp --path=/var/www/html plugin is-installed "$PLUGIN" --allow-root 2>/dev/null; then
-    wp --path=/var/www/html plugin install "$PLUGIN" --allow-root
+    wp --path=/var/www/html plugin install "$PLUGIN" --allow-root 2>&1 | tail -2
   fi
-  wp --path=/var/www/html plugin activate "$PLUGIN" --allow-root
+  wp --path=/var/www/html plugin activate "$PLUGIN" --allow-root 2>&1 | tail -1
 done
 wp --path=/var/www/html option update classic-editor-replace "classic" --allow-root
 wp --path=/var/www/html option update classic-editor-allow-users "allow" --allow-root
