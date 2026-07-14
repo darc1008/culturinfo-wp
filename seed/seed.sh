@@ -138,17 +138,22 @@ echo "==> Navigation menu"
 if ! wp --path=/var/www/html menu list --allow-root 2>/dev/null | grep -q "Menú Principal"; then
   wp --path=/var/www/html menu create "Menú Principal" --allow-root 2>&1 | tail -1
 fi
-# Poblar menu con categorias (idempotente: si ya estan, skip)
+# Poblar menu con categorias: limpia items actuales y re-crea
+echo "  Limpiando items del menu..."
+EXISTING_ITEMS=$(wp --path=/var/www/html menu item list "Menú Principal" --field=db_id --format=ids --allow-root 2>/dev/null)
+for ITEM_ID in $EXISTING_ITEMS; do
+  wp --path=/var/www/html menu item delete "$ITEM_ID" --allow-root 2>/dev/null
+done
+echo "  Agregando categorias al menu..."
 for SLUG in cultura politica economia tecnologia deportes opinion mundo; do
   CAT_ID=$(wp --path=/var/www/html term list category --slug="$SLUG" --field=term_id --allow-root 2>/dev/null | head -1)
   if [ -n "$CAT_ID" ]; then
-    # Verificar si ya esta en el menu
-    IN_MENU=$(wp --path=/var/www/html menu item list "Menú Principal" --fields=object_id --allow-root 2>/dev/null | grep -c "$CAT_ID" || echo 0)
-    if [ "$IN_MENU" -eq 0 ]; then
-      wp --path=/var/www/html menu item add-post-term "Menú Principal" category "$CAT_ID" --allow-root 2>/dev/null
-    fi
+    wp --path=/var/www/html menu item add-post-term "Menú Principal" category "$CAT_ID" --allow-root 2>&1 | tail -1
   fi
 done
+# Mostrar resultado
+echo "  Items actuales en Menú Principal:"
+wp --path=/var/www/html menu item list "Menú Principal" --fields=db_id,type,title --allow-root 2>&1 | head -15
 
 parse_frontmatter() {
   local FILE="$1"
