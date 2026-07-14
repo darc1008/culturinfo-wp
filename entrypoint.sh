@@ -1,5 +1,5 @@
 #!/bin/bash
-# culturinfo - Entrypoint: inicializa MariaDB local, ejecuta seed, arranca supervisord
+# culturinfo - Entrypoint: inicializa MariaDB local, ejecuta seed, arranca Apache
 set -e
 
 echo "[entrypoint] Iniciando culturinfo..."
@@ -10,10 +10,17 @@ if [ ! -d /var/lib/mysql/mysql ]; then
   mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null
 fi
 
+# Si /var/www/html está vacío (volumen nuevo en primer arranque), copiar el WP de la imagen
+if [ ! -f /var/www/html/wp-load.php ]; then
+  echo "[entrypoint] Copiando WordPress core al volumen..."
+  cp -a /usr/src/wordpress/. /var/www/html/
+  chown -R www-data:www-data /var/www/html
+fi
+
 # Asegurar permisos
 chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
 
-# Iniciar MariaDB (sin daemon)
+# Iniciar MariaDB
 echo "[entrypoint] Iniciando MariaDB..."
 /usr/bin/mysqld_safe --datadir=/var/lib/mysql --user=mysql > /var/log/mariadb-startup.log 2>&1 &
 sleep 5
@@ -41,8 +48,10 @@ echo "[entrypoint] MariaDB ready"
 
 # Ejecutar seed (idempotente, en background) y arrancar Apache
 (
-  sleep 3
-  /usr/local/bin/seed.sh > /tmp/seed.log 2>&1 && echo "[seed] done" || echo "[seed] FAILED, log: /tmp/seed.log"
+  sleep 5
+  echo "[seed] starting..."
+  /usr/local/bin/seed.sh > /tmp/seed.log 2>&1
+  echo "[seed] done (exit $?)"
 ) &
 
 # Iniciar Apache directamente
