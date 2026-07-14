@@ -16,4 +16,8 @@ COPY seed/seed.sh /usr/local/bin/seed.sh
 COPY seed/articles /seed/articles
 RUN chmod +x /usr/local/bin/seed.sh
 
-CMD ["bash", "-c", "apache2-foreground"]
+# Custom entrypoint that seeds then starts Apache
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+CMD ["/usr/local/bin/entrypoint.sh"]
