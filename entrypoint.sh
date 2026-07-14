@@ -1,23 +1,50 @@
 #!/bin/bash
-# culturinfo - Entrypoint: ejecuta seed (idempotente) y arranca Apache
+# culturinfo - Entrypoint: inicializa MariaDB local, ejecuta seed, arranca supervisord
 set -e
 
-echo "[entrypoint] Iniciando WordPress..."
+echo "[entrypoint] Iniciando culturinfo..."
 
-# Esperar a la DB (intenta wp db check)
-for i in $(seq 1 30); do
-  if wp --path=/var/www/html db check --allow-root 2>/dev/null; then
-    echo "[entrypoint] DB OK"
+# Inicializar MariaDB si la base está vacía
+if [ ! -d /var/lib/mysql/mysql ]; then
+  echo "[entrypoint] Inicializando MariaDB..."
+  mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null
+fi
+
+# Asegurar permisos
+chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
+
+# Iniciar MariaDB (sin daemon)
+echo "[entrypoint] Iniciando MariaDB..."
+/usr/bin/mysqld_safe --datadir=/var/lib/mysql --user=mysql > /var/log/mariadb-startup.log 2>&1 &
+sleep 5
+
+# Esperar a MariaDB
+for i in $(seq 1 20); do
+  if mysqladmin ping --silent 2>/dev/null; then
+    echo "[entrypoint] MariaDB OK"
     break
   fi
-  echo "[entrypoint] Esperando DB ($i/30)..."
-  sleep 2
+  sleep 1
 done
 
-# Ejecutar seed en background para no bloquear Apache
+# Crear DB y usuario si no existen
+mysql -uroot <<EOSQL
+CREATE DATABASE IF NOT EXISTS \`${MARIADB_DATABASE:-culturinfo}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '${MARIADB_USER:-culturinfo}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD}';
+CREATE USER IF NOT EXISTS '${MARIADB_USER:-culturinfo}'@'127.0.0.1' IDENTIFIED BY '${MARIADB_PASSWORD}';
+GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE:-culturinfo}\`.* TO '${MARIADB_USER:-culturinfo}'@'localhost';
+GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE:-culturinfo}\`.* TO '${MARIADB_USER:-culturinfo}'@'127.0.0.1';
+FLUSH PRIVILEGES;
+EOSQL
+
+echo "[entrypoint] MariaDB ready"
+
+# Ejecutar seed (idempotente, en background) y arrancar Apache
 (
-  /usr/local/bin/seed.sh > /tmp/seed.log 2>&1 && echo "[seed] done" || echo "[seed] failed, see /tmp/seed.log"
+  sleep 3
+  /usr/local/bin/seed.sh > /tmp/seed.log 2>&1 && echo "[seed] done" || echo "[seed] FAILED, log: /tmp/seed.log"
 ) &
 
-# Iniciar Apache en primer plano
+# Iniciar Apache directamente
+echo "[entrypoint] Iniciando Apache..."
 exec apache2-foreground
