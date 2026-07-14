@@ -1,12 +1,23 @@
 #!/bin/bash
 # One-shot WordPress bootstrap for culturinfo.
 # Idempotent. Triggered by Coolify "Post-startup" or manually via `docker exec`.
-set -e
+DB_HOST="${WORDPRESS_DB_HOST:-127.0.0.1}"
+DB_USER="${WORDPRESS_DB_USER:-culturinfo}"
+DB_PASS="${WORDPRESS_DB_PASSWORD:-Cult1nf0_M4r1adb_2026!}"
+DB_NAME="${WORDPRESS_DB_NAME:-culturinfo}"
+
+# Set DB env for wp-cli
+export WORDPRESS_DB_HOST="$DB_HOST"
+export WORDPRESS_DB_USER="$DB_USER"
+export WORDPRESS_DB_PASSWORD="$DB_PASS"
+export WORDPRESS_DB_NAME="$DB_NAME"
 
 # Wait for DB
 for i in {1..30}; do
-  wp --path=/var/www/html db check --allow-root 2>/dev/null && break
-  echo "  waiting for db..."
+  if wp --path=/var/www/html db check --allow-root 2>/dev/null; then
+    echo "  db OK"
+    break
+  fi
   sleep 2
 done
 
