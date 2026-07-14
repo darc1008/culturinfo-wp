@@ -148,14 +148,11 @@ echo "  Agregando categorias al menu..."
 for SLUG in cultura politica economia tecnologia deportes opinion mundo; do
   CAT_ID=$(wp --path=/var/www/html term list category --slug="$SLUG" --field=term_id --allow-root 2>/dev/null | head -1)
   if [ -n "$CAT_ID" ]; then
-    # wp-cli 2.6+: usar menu item add-custom con taxonomy/category
+    # wp menu item add-custom <menu> <title> <link> - orden posicional
     wp --path=/var/www/html menu item add-custom \
       "Menú Principal" \
-      --type=taxonomy \
-      --object-id="$CAT_ID" \
-      --object="category" \
-      --link="/category/$SLUG/" \
-      --title="$SLUG" \
+      "$(echo "$SLUG" | sed 's/^./\U&/')" \
+      "/category/$SLUG/" \
       --allow-root 2>&1 | tail -1
   fi
 done
