@@ -145,7 +145,9 @@ if [ "${EXISTING:-0}" -lt 5 ]; then
 
     echo "  + $SLUG | cat=[$CATS_CLEAN] | title='$TITLE'"
     if [ -n "$CATS_CLEAN" ]; then
-      wp --path=/var/www/html post create "$FILE" \
+      # Strip YAML frontmatter and pipe content via stdin
+      awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" | \
+        wp --path=/var/www/html post create - \
         --post_type=post \
         --post_status=publish \
         --post_title="$TITLE" \
@@ -153,7 +155,8 @@ if [ "${EXISTING:-0}" -lt 5 ]; then
         --post_category="$CATS_CLEAN" \
         --allow-root 2>&1 | tail -1
     else
-      wp --path=/var/www/html post create "$FILE" \
+      awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" | \
+        wp --path=/var/www/html post create - \
         --post_type=post \
         --post_status=publish \
         --post_title="$TITLE" \
