@@ -232,9 +232,19 @@ fi
 # Asignar menu a la posicion 'primary' del tema ColorMag (este es el fix que faltaba)
 MENU_ID=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
 if [ -n "$MENU_ID" ]; then
-  # Borra la "Sample Page" del menu
+  # Borra la "Sample Page" del WP
   SAMPLE_ID=$(wp --path=/var/www/html post list --post_type=page --name="sample-page" --field=ID --allow-root 2>/dev/null | head -1)
-  [ -n "$SAMPLE_ID" ] && wp --path=/var/www/html post delete "$SAMPLE_ID" --force --allow-root 2>/dev/null
+  if [ -n "$SAMPLE_ID" ]; then
+    echo "==> Eliminando Sample Page ID=$SAMPLE_ID"
+    wp --path=/var/www/html post delete "$SAMPLE_ID" --force --allow-root 2>&1 | tail -1
+  fi
+  # Tambien borra la página Hello World (post 1)
+  wp --path=/var/www/html post delete 1 --force --allow-root 2>/dev/null || true
+
+  # Borra todos los menu items del menu "Sample" (default) si existe
+  SAMPLE_MENU=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Sample/ {gsub(/ /,"",$1); print $1; exit}')
+  [ -n "$SAMPLE_MENU" ] && [ "$SAMPLE_MENU" != "$MENU_ID" ] && wp --path=/var/www/html menu delete "$SAMPLE_MENU" --allow-root 2>/dev/null
+
   # Asigna menu al tema via nav_menu_locations (JSON en option)
   CURRENT_LOCATIONS=$(wp --path=/var/www/html option get nav_menu_locations --format=json --allow-root 2>/dev/null || echo "{}")
   NEW_LOCATIONS=$(echo "$CURRENT_LOCATIONS" | python3 -c "
@@ -245,7 +255,19 @@ except: d = {}
 d['primary'] = $MENU_ID
 print(json.dumps(d))
 " 2>/dev/null)
+  echo "==> Asignando menu $MENU_ID a nav_menu_locations: $NEW_LOCATIONS"
   [ -n "$NEW_LOCATIONS" ] && echo "$NEW_LOCATIONS" | wp --path=/var/www/html option update nav_menu_locations --format=json --allow-root 2>&1 | tail -1
+
+  # Tambien asigna directamente al theme_mods
+  THEME_MODS=$(wp --path=/var/www/html option get theme_mods_colormag --format=json --allow-root 2>/dev/null || echo "{}")
+  NEW_THEME_MODS=$(echo "$THEME_MODS" | python3 -c "
+import sys, json
+try: d = json.load(sys.stdin)
+except: d = {}
+d['nav_menu_locations'] = {'primary': $MENU_ID}
+print(json.dumps(d))
+" 2>/dev/null)
+  [ -n "$NEW_THEME_MODS" ] && echo "$NEW_THEME_MODS" | wp --path=/var/www/html option update theme_mods_colormag --format=json --allow-root 2>&1 | tail -1
 fi
 
 echo "==> ✓ Bootstrap done"
