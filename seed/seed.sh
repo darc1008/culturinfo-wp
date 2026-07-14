@@ -108,6 +108,27 @@ if [ "$MENU_EXISTS" -eq 0 ]; then
   [ -n "$MENU_ID" ] && wp --path=/var/www/html menu location assign "$MENU_ID" primary --allow-root
 fi
 
+parse_frontmatter() {
+  local FILE="$1"
+  local FIELD="$2"
+  # Extrae la primera ocurrencia de "FIELD:" y captura el valor hasta fin de línea
+  sed -n "/^${FIELD}:/p" "$FILE" | head -1 | sed "s/^${FIELD}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | sed "s/'$//" | sed "s/'\$//"
+}
+
+parse_categories() {
+  local FILE="$1"
+  # Formato YAML: "categories: [slug1,slug2]" o "categories:\n  - slug1\n  - slug2"
+  local VAL=$(parse_frontmatter "$FILE" categories)
+  if [[ "$VAL" == \[* ]]; then
+    echo "$VAL" | tr -d '[]' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '\n' ',' | sed 's/,$//'
+  elif [[ -n "$VAL" ]]; then
+    echo "$VAL"
+  else
+    # Formato lista
+    awk '/^categories:/{f=1; next} f && /^- /{sub(/^- /,""); gsub(/[[:space:]]/,""); print; f=0; next} f && /^[^ -]/{f=0}' "$FILE" | tr '\n' ',' | sed 's/,$//'
+  fi
+}
+
 echo "==> Sample articles"
 EXISTING=$(wp --path=/var/www/html post list --post_type=post --post_status=publish --format=count --allow-root 2>/dev/null | tr -d ' ')
 if [ "${EXISTING:-0}" -lt 5 ]; then
@@ -117,22 +138,19 @@ if [ "${EXISTING:-0}" -lt 5 ]; then
   for FILE in /seed/articles/*.md; do
     [ -f "$FILE" ] || continue
     SLUG=$(basename "$FILE" .md | sed 's/^[0-9]*-//')
-    # Parse frontmatter con grep
-    TITLE=$(awk '/^title: /{sub(/^title: /,""); gsub(/^"|"$/,""); print; exit}' "$FILE")
-    CATS=$(awk '/^categories:/{f=1; next} f && /^- /{sub(/^- /,""); gsub(/\[|\]|"/,""); print; exit}' "$FILE")
-    [ -z "$CATS" ] && CATS=$(awk '/^categories:/{f=1; next} f && /\[/{gsub(/\[|\]|"/,""); gsub(/ /,""); print; exit}' "$FILE")
-    # Si categories tiene comas separar
-    CATS_CSV=$(echo "$CATS" | tr ',' ' ' | awk '{for(i=1;i<=NF;i++) print $i}' | sort -u | tr '\n' ',' | sed 's/,$//')
+    TITLE=$(parse_frontmatter "$FILE" title)
+    CATS=$(parse_categories "$FILE")
+    # Quitar ** que YAML usa a veces
+    CATS_CLEAN=$(echo "$CATS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^\*\*//;s/\*\*$//' | tr '\n' ',' | sed 's/,$//')
 
-    echo "  + $SLUG | cat=$CATS_CSV | title=$TITLE"
-    if [ -n "$CATS_CSV" ]; then
+    echo "  + $SLUG | cat=[$CATS_CLEAN] | title='$TITLE'"
+    if [ -n "$CATS_CLEAN" ]; then
       wp --path=/var/www/html post create "$FILE" \
         --post_type=post \
         --post_status=publish \
         --post_title="$TITLE" \
         --post_name="$SLUG" \
-        --post_category="$CATS_CSV" \
-        --post_excerpt="" \
+        --post_category="$CATS_CLEAN" \
         --allow-root 2>&1 | tail -1
     else
       wp --path=/var/www/html post create "$FILE" \
