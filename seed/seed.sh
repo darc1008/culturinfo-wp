@@ -66,11 +66,33 @@ echo "==> Permalinks"
 wp --path=/var/www/html rewrite structure "/%postname%/" --allow-root
 wp --path=/var/www/html rewrite flush --hard --allow-root
 
-echo "==> Newscrunch theme"
-if ! wp --path=/var/www/html theme is-installed newscrunch --allow-root 2>/dev/null; then
-  wp --path=/var/www/html theme install "https://downloads.wordpress.org/theme/newscrunch.1.5.2.zip" --allow-root
+echo "==> ColorMag theme (newspaper/magazine layout)"
+# Limpiar newscrunch
+wp --path=/var/www/html theme uninstall newscrunch --allow-root 2>/dev/null || true
+# Instalar ColorMag
+if ! wp --path=/var/www/html theme is-installed colormag --allow-root 2>/dev/null; then
+  echo "  Instalando ColorMag..."
+  wp --path=/var/www/html theme install "https://downloads.wordpress.org/theme/colormag.3.2.1.zip" --allow-root 2>&1 | tail -3
 fi
-wp --path=/var/www/html theme activate newscrunch --allow-root
+wp --path=/var/www/html theme activate colormag --allow-root 2>&1 | tail -1
+
+# Companion plugin (ThemeGrill Toolkit) para widgets y customizer
+if ! wp --path=/var/www/html plugin is-installed themegrill-tools --allow-root 2>/dev/null; then
+  wp --path=/var/www/html plugin install themegrill-tools --allow-root 2>&1 | tail -2
+fi
+wp --path=/var/www/html plugin activate themegrill-tools --allow-root 2>&1 | tail -1
+
+# Configuración ColorMag
+wp --path=/var/www/html option update colormag_site_layout "wide_layout" --allow-root
+wp --path=/var/www/html option update colormag_primary_color "e74c3c" --allow-root  # rojo periodístico
+wp --path=/var/www/html option update colormag_secondary_color "2c3e50" --allow-root
+wp --path=/var/www/html option update colormag_header_logo_placement "header_text_only" --allow-root
+wp --path=/var/www/html option update colormag_enable_featured_image_slider "1" --allow-root
+wp --path=/var/www/html option update colormag_enable_breaking_news "1" --allow-root
+wp --path=/var/www/html option update colormag_breaking_news_title "Última Hora" --allow-root
+wp --path=/var/www/html option update colormag_hide_blog_post_feature_image "" --allow-root
+wp --path=/var/www/html option update colormag_blog_post_excerpt_length "40" --allow-root
+wp --path=/var/www/html option update colormag_default_widgets "yes" --allow-root
 
 echo "==> Essential plugins"
 for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
@@ -162,6 +184,19 @@ if [ "${EXISTING:-0}" -lt 5 ]; then
         --post_title="$TITLE" \
         --post_name="$SLUG" \
         --allow-root 2>&1 | tail -1
+    fi
+
+    # Descargar imagen destacada y asignarla
+    IMG_URL=$(grep '^featured_image:' "$FILE" | head -1 | sed 's/^featured_image:[[:space:]]*//' | sed 's/^"//;s/"$//')
+    if [ -n "$IMG_URL" ]; then
+      POST_ID=$(wp --path=/var/www/html post list --post_type=post --name="$SLUG" --field=ID --allow-root 2>/dev/null | head -1)
+      if [ -n "$POST_ID" ]; then
+        echo "    downloading $IMG_URL"
+        curl -sL --max-time 30 -o /tmp/feat.jpg "$IMG_URL" 2>/dev/null
+        if [ -s /tmp/feat.jpg ]; then
+          wp --path=/var/www/html media import /tmp/feat.jpg --post_id="$POST_ID" --featured_image --allow-root 2>&1 | tail -1
+        fi
+      fi
     fi
   done
 fi
