@@ -28,6 +28,7 @@ COPY supervisord.conf /etc/supervisor/conf.d/culturinfo.conf
 # Seed scripts and sample articles
 COPY seed/seed.sh /usr/local/bin/seed.sh
 COPY seed/articles /seed/articles
+COPY seed/assign_menu.php /seed/assign_menu.php
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh
 

@@ -258,25 +258,8 @@ if [ -n "$MENU_ID" ]; then
   SAMPLE_MENU=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Sample/ {gsub(/ /,"",$1); print $1; exit}')
   [ -n "$SAMPLE_MENU" ] && [ "$SAMPLE_MENU" != "$MENU_ID" ] && wp --path=/var/www/html menu delete "$SAMPLE_MENU" --allow-root 2>/dev/null
 
-  echo "==> Asignando menu $MENU_ID a theme_mods_colormag"
-  # Asignar via PHP (multiple locations para cubrir todos los registries)
-  wp --path=/var/www/html eval "
-\$menu_id = (int) $MENU_ID;
-
-// 1. theme_mods_colormag (que es lo que ColorMag lee)
-\$mods = get_option('theme_mods_colormag');
-if (!is_array(\$mods)) \$mods = array();
-\$mods['nav_menu_locations'] = array('primary' => \$menu_id);
-update_option('theme_mods_colormag', \$mods);
-
-// 2. nav_menu_locations (registro global)
-update_option('nav_menu_locations', array('primary' => \$menu_id));
-
-// 3. Trigger ColorMag header_builder con customizer
-\$wpmods = get_option('theme_mods_colormag');
-echo 'DEBUG: theme_mods_colormag = '; print_r(\$wpmods);
-echo 'DEBUG: nav_menu_locations = '; print_r(get_option('nav_menu_locations'));
-" --allow-root 2>&1 | tail -20
+  echo "==> Asignando menu $MENU_ID via PHP"
+  CULTURINFO_MENU_ID=$MENU_ID wp --path=/var/www/html eval-file /seed/assign_menu.php --allow-root 2>&1 | tail -25
 fi
 
 echo "==> ✓ Bootstrap done"
