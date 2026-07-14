@@ -92,6 +92,23 @@ wp --path=/var/www/html option update colormag_enable_breaking_news "1" --allow-
 wp --path=/var/www/html option update colormag_breaking_news_title "Última Hora" --allow-root
 wp --path=/var/www/html option update colormag_blog_post_excerpt_length "40" --allow-root
 
+# Forzar color primario via custom CSS (algunos theme_mods se escapan)
+cat > /tmp/extra.css <<'CSS'
+:root {
+  --tm-color-primary: #e74c3c !important;
+  --tm-color-secondary: #2c3e50 !important;
+}
+a, a:visited { color: #e74c3c; }
+.entry-title a:hover, .cm-entry-title a:hover { color: #e74c3c !important; }
+.colormag-button, button, input[type="button"], input[type="reset"], input[type="submit"] {
+  background-color: #e74c3c !important;
+}
+CSS
+wp --path=/var/www/html option update custom_css_post_id 0 --allow-root
+wp --path=/var/www/html post create /tmp/extra.css --post_type=custom_css --post_status=publish --post_title="Culturinfo Custom CSS" --allow-root 2>/dev/null || true
+CSS_ID=$(wp --path=/var/www/html post list --post_type=custom_css --field=ID --allow-root 2>/dev/null | head -1)
+[ -n "$CSS_ID" ] && wp --path=/var/www/html option update custom_css_post_id "$CSS_ID" --allow-root
+
 echo "==> Essential plugins"
 for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
   if ! wp --path=/var/www/html plugin is-installed "$PLUGIN" --allow-root 2>/dev/null; then
@@ -127,6 +144,14 @@ if [ "$MENU_EXISTS" -eq 0 ]; then
   MENU_ID=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
   [ -n "$MENU_ID" ] && wp --path=/var/www/html menu location assign "$MENU_ID" primary --allow-root
 fi
+
+# Asignar menu principal también al tema ColorMag
+wp --path=/var/www/html option update colormag_default_menu "$MENU_ID" --allow-root 2>/dev/null || true
+# ColorMag usa theme_mods_colormag - activar el menu como primary
+wp --path=/var/www/html option update nav_menu_locations --format=json --allow-root "$(cat <<EOF
+{"primary":$MENU_ID}
+EOF
+)" 2>/dev/null || true
 
 parse_frontmatter() {
   local FILE="$1"
@@ -165,22 +190,30 @@ if [ "${EXISTING:-0}" -lt 5 ]; then
 
     echo "  + $SLUG | cat=[$CATS_CLEAN] | title='$TITLE'"
     if [ -n "$CATS_CLEAN" ]; then
-      # Strip YAML frontmatter and pipe content via stdin
+      # Strip YAML frontmatter, strip markdown headers, pipe content via stdin
       awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" | \
+        sed 's/^#\+[[:space:]]*//' | \
+        sed 's/\*\*//g' | \
+        sed 's/^>//' | \
         wp --path=/var/www/html post create - \
         --post_type=post \
         --post_status=publish \
         --post_title="$TITLE" \
         --post_name="$SLUG" \
+        --post_excerpt="$TITLE." \
         --post_category="$CATS_CLEAN" \
         --allow-root 2>&1 | tail -1
     else
       awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" | \
+        sed 's/^#\+[[:space:]]*//' | \
+        sed 's/\*\*//g' | \
+        sed 's/^>//' | \
         wp --path=/var/www/html post create - \
         --post_type=post \
         --post_status=publish \
         --post_title="$TITLE" \
         --post_name="$SLUG" \
+        --post_excerpt="$TITLE." \
         --allow-root 2>&1 | tail -1
     fi
 
