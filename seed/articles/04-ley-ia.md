@@ -2,7 +2,7 @@
 title: "Nueva ley de inteligencia artificial entra en vigor: qué cambia para usuarios y empresas"
 slug: ley-ia-2026
 date: 2026-07-10 09:00:00
-categories: [tecnologia]
+categories: [reflexiones-filo-linguisticas]
 tags: [inteligencia-artificial, legislacion, tecnologia]
 status: publish
 featured_image: https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1200

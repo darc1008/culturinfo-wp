@@ -2,7 +2,7 @@
 title: "Banco Central reduce tasa de interés por tercera vez consecutiva"
 slug: banco-central-reduce-tasa
 date: 2026-07-11 14:00:00
-categories: [economia]
+categories: [ventana-social]
 tags: [banco-central, tasas, economia]
 status: publish
 featured_image: https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200

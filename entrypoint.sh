@@ -17,6 +17,18 @@ if [ ! -f /var/www/html/wp-load.php ]; then
   chown -R www-data:www-data /var/www/html
 fi
 
+# Sincronizar el tema editorial versionado en cada despliegue.
+# El directorio de WordPress es persistente, por eso el tema se copia al arrancar.
+echo "[entrypoint] Sincronizando tema Culturinfo Editorial..."
+mkdir -p /var/www/html/wp-content/themes/culturinfo
+cp -a /opt/culturinfo/theme/. /var/www/html/wp-content/themes/culturinfo/
+chown -R www-data:www-data /var/www/html/wp-content/themes/culturinfo
+
+echo "[entrypoint] Sincronizando gestor de anuncios..."
+mkdir -p /var/www/html/wp-content/plugins/culturinfo-ads
+cp -a /opt/culturinfo/plugins/culturinfo-ads/. /var/www/html/wp-content/plugins/culturinfo-ads/
+chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-ads
+
 # Asegurar permisos
 chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
 

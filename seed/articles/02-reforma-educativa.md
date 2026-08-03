@@ -2,7 +2,7 @@
 title: "Senado aprueba reforma educativa tras ocho horas de debate"
 slug: senado-aprueba-reforma-educativa
 date: 2026-07-13 18:30:00
-categories: [politica]
+categories: [aula-abierta]
 tags: [senado, educacion, reforma]
 status: publish
 featured_image: https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=1200

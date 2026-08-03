@@ -1,21 +1,20 @@
 #!/bin/bash
-# One-shot WordPress bootstrap for culturinfo.
-# Idempotent. Triggered by Coolify "Post-startup" or manually via `docker exec`.
+# Culturinfo — inicialización idempotente de WordPress.
+set -e
+
 DB_HOST="${WORDPRESS_DB_HOST:-127.0.0.1}"
 DB_USER="${WORDPRESS_DB_USER:-culturinfo}"
 DB_PASS="${WORDPRESS_DB_PASSWORD:-Cult1nf0_M4r1adb_2026!}"
 DB_NAME="${WORDPRESS_DB_NAME:-culturinfo}"
 
-# Set DB env for wp-cli
 export WORDPRESS_DB_HOST="$DB_HOST"
 export WORDPRESS_DB_USER="$DB_USER"
 export WORDPRESS_DB_PASSWORD="$DB_PASS"
 export WORDPRESS_DB_NAME="$DB_NAME"
 
-echo "==> WordPress DB target: $DB_USER@$DB_HOST/$DB_NAME"
-
-# Generate wp-config.php if missing
+echo "==> WordPress DB: $DB_USER@$DB_HOST/$DB_NAME"
 cd /var/www/html
+
 if [ ! -f wp-config.php ]; then
   echo "==> Creando wp-config.php"
   wp config create \
@@ -29,238 +28,176 @@ if [ ! -f wp-config.php ]; then
     --allow-root
 fi
 
-# Wait for DB
 for i in {1..30}; do
-  if wp --path=/var/www/html db check --allow-root 2>/dev/null; then
-    echo "  db OK"
+  if wp db check --allow-root >/dev/null 2>&1; then
     break
   fi
-  echo "  waiting for db ($i)..."
+  echo "  esperando la base de datos ($i)..."
   sleep 2
 done
 
-# Install WP if not installed
-if ! wp --path=/var/www/html core is-installed --allow-root 2>/dev/null; then
-  echo "==> Installing WordPress core"
-  wp --path=/var/www/html core install \
+if ! wp core is-installed --allow-root >/dev/null 2>&1; then
+  echo "==> Instalando WordPress"
+  wp core install \
     --url="${WP_SITEURL:-https://culturinfo.statusloop.app}" \
     --title="${WP_TITLE:-Culturinfo}" \
     --admin_user="${WP_ADMIN_USER:-admin}" \
     --admin_password="${WP_ADMIN_PASSWORD}" \
     --admin_email="${WP_ADMIN_EMAIL:-admin@culturinfo.statusloop.app}" \
-    --skip-email --allow-root
+    --skip-email \
+    --allow-root
+fi
+
+echo "==> Identidad y ajustes del sitio"
+wp option update blogname "${WP_TITLE:-Culturinfo}" --allow-root
+wp option update blogdescription "${WP_TAGLINE:-Periódico digital de Horizonte Cultural}" --allow-root
+wp option update timezone_string "${WP_TIMEZONE:-America/Santo_Domingo}" --allow-root
+wp option update date_format "j \d\e F \d\e Y" --allow-root
+wp option update time_format "H:i" --allow-root
+wp option update start_of_week "1" --allow-root
+wp option update posts_per_page "10" --allow-root
+wp option update default_comment_status "open" --allow-root
+wp option update show_on_front "posts" --allow-root
+
+echo "==> Enlaces permanentes"
+wp rewrite structure "/%postname%/" --allow-root
+wp rewrite flush --hard --allow-root
+
+echo "==> Activando Culturinfo Editorial"
+if ! wp theme is-installed culturinfo --allow-root >/dev/null 2>&1; then
+  echo "ERROR: el tema culturinfo no fue copiado al volumen de WordPress"
+  exit 1
+fi
+wp theme activate culturinfo --allow-root
+
+if wp plugin is-installed culturinfo-ads --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-ads --allow-root >/dev/null 2>&1 || true
 else
-  echo "==> WordPress ya instalado, saltando install"
+  echo "ERROR: el gestor de anuncios de Culturinfo no fue copiado a WordPress"
+  exit 1
 fi
 
-echo "==> Site settings"
-wp --path=/var/www/html option update blogdescription "${WP_TAGLINE:-Periódico digital de cultura, política y actualidad}" --allow-root
-wp --path=/var/www/html option update timezone_string "America/Santo_Domingo" --allow-root
-wp --path=/var/www/html option update date_format "d/m/Y" --allow-root
-wp --path=/var/www/html option update time_format "H:i" --allow-root
-wp --path=/var/www/html option update start_of_week "1" --allow-root
-wp --path=/var/www/html option update posts_per_page "10" --allow-root
-wp --path=/var/www/html option update default_comment_status "open" --allow-root
-
-echo "==> Permalinks"
-wp --path=/var/www/html rewrite structure "/%postname%/" --allow-root
-wp --path=/var/www/html rewrite flush --hard --allow-root
-
-echo "==> ColorMag theme (newspaper/magazine layout)"
-# Limpiar newscrunch si quedó
-wp --path=/var/www/html theme uninstall newscrunch --allow-root 2>/dev/null || true
-# Instalar ColorMag (sin número de versión, wp-cli usa la última)
-if ! wp --path=/var/www/html theme is-installed colormag --allow-root 2>/dev/null; then
-  echo "  Instalando ColorMag..."
-  wp --path=/var/www/html theme install colormag --allow-root 2>&1 | tail -3
-fi
-wp --path=/var/www/html theme activate colormag --allow-root 2>&1 | tail -1
-
-# Companion plugin (ThemeGrill Toolkit) para widgets y customizer
-if ! wp --path=/var/www/html plugin is-installed themegrill-tools --allow-root 2>/dev/null; then
-  wp --path=/var/www/html plugin install themegrill-tools --allow-root 2>&1 | tail -2
-fi
-wp --path=/var/www/html plugin activate themegrill-tools --allow-root 2>&1 | tail -1
-
-# ColorMag options via wp_options (ThemeGrill settings stored as WP options)
-wp --path=/var/www/html option update colormag_site_layout "wide_layout" --allow-root
-wp --path=/var/www/html option update colormag_primary_color "e74c3c" --allow-root
-wp --path=/var/www/html option update colormag_secondary_color "2c3e50" --allow-root
-wp --path=/var/www/html option update colormag_header_logo_placement "header_text_only" --allow-root
-wp --path=/var/www/html option update colormag_enable_featured_image_slider "1" --allow-root
-wp --path=/var/www/html option update colormag_enable_breaking_news "1" --allow-root
-wp --path=/var/www/html option update colormag_breaking_news_title "Última Hora" --allow-root
-wp --path=/var/www/html option update colormag_blog_post_excerpt_length "40" --allow-root
-
-# Forzar color primario via custom CSS (algunos theme_mods se escapan)
-cat > /tmp/extra.css <<'CSS'
-:root {
-  --tm-color-primary: #e74c3c !important;
-  --tm-color-secondary: #2c3e50 !important;
-}
-a, a:visited { color: #e74c3c; }
-.entry-title a:hover, .cm-entry-title a:hover { color: #e74c3c !important; }
-.colormag-button, button, input[type="button"], input[type="reset"], input[type="submit"] {
-  background-color: #e74c3c !important;
-}
-CSS
-wp --path=/var/www/html option update custom_css_post_id 0 --allow-root
-wp --path=/var/www/html post create /tmp/extra.css --post_type=custom_css --post_status=publish --post_title="Culturinfo Custom CSS" --allow-root 2>/dev/null || true
-CSS_ID=$(wp --path=/var/www/html post list --post_type=custom_css --field=ID --allow-root 2>/dev/null | head -1)
-[ -n "$CSS_ID" ] && wp --path=/var/www/html option update custom_css_post_id "$CSS_ID" --allow-root
-
-echo "==> Essential plugins"
+echo "==> Plugins esenciales"
 for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
-  if ! wp --path=/var/www/html plugin is-installed "$PLUGIN" --allow-root 2>/dev/null; then
-    wp --path=/var/www/html plugin install "$PLUGIN" --allow-root 2>&1 | tail -2
+  if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then
+    wp plugin install "$PLUGIN" --activate --allow-root 2>&1 | tail -2
+  else
+    wp plugin activate "$PLUGIN" --allow-root >/dev/null 2>&1 || true
   fi
-  wp --path=/var/www/html plugin activate "$PLUGIN" --allow-root 2>&1 | tail -1
 done
-wp --path=/var/www/html option update classic-editor-replace "classic" --allow-root
-wp --path=/var/www/html option update classic-editor-allow-users "allow" --allow-root
+wp option update classic-editor-replace "classic" --allow-root
+wp option update classic-editor-allow-users "allow" --allow-root
 
-echo "==> Categories"
+echo "==> Secciones editoriales"
 declare -A SECTIONS=(
-  [cultura]="Cultura"
-  [politica]="Política"
-  [economia]="Economía"
-  [tecnologia]="Tecnología"
-  [deportes]="Deportes"
-  [opinion]="Opinión"
-  [mundo]="Mundo"
+  [con-palabras]="Con Palabras"
+  [arte-plural]="Arte Plural"
+  [reflexiones-filo-linguisticas]="Reflexiones Filo-lingüísticas"
+  [anfora-cultura]="Ánfora Cultura"
+  [ventana-social]="Ventana Social"
+  [aula-abierta]="Aula Abierta"
 )
-for SLUG in "${!SECTIONS[@]}"; do
-  wp --path=/var/www/html term create category "${SECTIONS[$SLUG]}" --slug="$SLUG" --description="Sección de ${SECTIONS[$SLUG]}" --allow-root 2>/dev/null || true
-done
+declare -A DESCRIPTIONS=(
+  [con-palabras]="Crónicas, entrevistas y relatos donde la palabra abre nuevas maneras de mirar."
+  [arte-plural]="Creación, lenguajes artísticos y las voces que transforman nuestra sensibilidad."
+  [reflexiones-filo-linguisticas]="Ideas sobre lenguaje, pensamiento y los significados que construyen el mundo."
+  [anfora-cultura]="Patrimonio, memoria e identidad: el legado cultural puesto en conversación."
+  [ventana-social]="La sociedad en movimiento, sus desafíos y las iniciativas que generan encuentro."
+  [aula-abierta]="Educación sin fronteras: herramientas, experiencias y saberes para compartir."
+)
+SECTION_ORDER=(con-palabras arte-plural reflexiones-filo-linguisticas anfora-cultura ventana-social aula-abierta)
 
-echo "==> Navigation menu"
-# Crear menu si no existe
-if ! wp --path=/var/www/html menu list --allow-root 2>/dev/null | grep -q "Menú Principal"; then
-  wp --path=/var/www/html menu create "Menú Principal" --allow-root 2>&1 | tail -1
-fi
-# Poblar menu con categorias: limpia items actuales y re-crea
-echo "  Limpiando items del menu..."
-EXISTING_ITEMS=$(wp --path=/var/www/html menu item list "Menú Principal" --field=db_id --format=ids --allow-root 2>/dev/null)
-for ITEM_ID in $EXISTING_ITEMS; do
-  wp --path=/var/www/html menu item delete "$ITEM_ID" --allow-root 2>/dev/null
-done
-echo "  Agregando categorias al menu..."
-for SLUG in cultura politica economia tecnologia deportes opinion mundo; do
-  CAT_ID=$(wp --path=/var/www/html term list category --slug="$SLUG" --field=term_id --allow-root 2>/dev/null | head -1)
-  if [ -n "$CAT_ID" ]; then
-    # wp menu item add-custom <menu> <title> <link> - orden posicional
-    wp --path=/var/www/html menu item add-custom \
-      "Menú Principal" \
-      "$(echo "$SLUG" | sed 's/^./\U&/')" \
-      "/category/$SLUG/" \
-      --allow-root 2>&1 | tail -1
+for SLUG in "${SECTION_ORDER[@]}"; do
+  if ! wp term get category "$SLUG" --by=slug --allow-root >/dev/null 2>&1; then
+    wp term create category "${SECTIONS[$SLUG]}" --slug="$SLUG" --description="${DESCRIPTIONS[$SLUG]}" --allow-root >/dev/null
+  else
+    wp term update category "$SLUG" --by=slug --name="${SECTIONS[$SLUG]}" --description="${DESCRIPTIONS[$SLUG]}" --allow-root >/dev/null
   fi
 done
-echo "  Items actuales en Menú Principal:"
-wp --path=/var/www/html menu item list "Menú Principal" --fields=db_id,type,title,url --allow-root 2>&1 | head -15
+
+echo "==> Menú principal"
+if ! wp menu list --allow-root 2>/dev/null | grep -q "Menú Principal"; then
+  wp menu create "Menú Principal" --allow-root >/dev/null
+fi
+EXISTING_ITEMS=$(wp menu item list "Menú Principal" --field=db_id --format=ids --allow-root 2>/dev/null || true)
+for ITEM_ID in $EXISTING_ITEMS; do
+  wp menu item delete "$ITEM_ID" --allow-root >/dev/null 2>&1 || true
+done
+for SLUG in "${SECTION_ORDER[@]}"; do
+  wp menu item add-custom "Menú Principal" "${SECTIONS[$SLUG]}" "/category/$SLUG/" --allow-root >/dev/null
+done
+
+MENU_ID=$(wp menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
+if [ -n "$MENU_ID" ]; then
+  CULTURINFO_MENU_ID="$MENU_ID" wp eval-file /seed/assign_menu.php --allow-root >/dev/null
+fi
 
 parse_frontmatter() {
   local FILE="$1"
   local FIELD="$2"
-  sed -n "/^${FIELD}:/p" "$FILE" | head -1 | sed "s/^${FIELD}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | sed "s/'$//" | sed "s/'\$//"
+  sed -n "/^${FIELD}:/p" "$FILE" | head -1 | tr -d '\r' | sed "s/^${FIELD}:[[:space:]]*//" | sed 's/^"//;s/"$//'
 }
 
 parse_categories() {
   local FILE="$1"
-  local VAL=$(parse_frontmatter "$FILE" categories)
-  if [[ "$VAL" == \[* ]]; then
-    echo "$VAL" | tr -d '[]' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '\n' ',' | sed 's/,$//'
-  elif [[ -n "$VAL" ]]; then
-    echo "$VAL"
-  else
-    awk '/^categories:/{f=1; next} f && /^- /{sub(/^- /,""); gsub(/[[:space:]]/,""); print; f=0; next} f && /^[^ -]/{f=0}' "$FILE" | tr '\n' ',' | sed 's/,$//'
-  fi
+  parse_frontmatter "$FILE" categories | tr -d '[] ' | tr ',' ' '
 }
 
-echo "==> Sample articles"
-EXISTING=$(wp --path=/var/www/html post list --post_type=post --post_status=publish --format=count --allow-root 2>/dev/null | tr -d ' ')
-if [ "${EXISTING:-0}" -lt 5 ]; then
-  # Borrar posts dummy previos (los creados sin frontmatter válido)
-  wp --path=/var/www/html post delete $(wp --path=/var/www/html post list --post_type=post --post_status=publish --format=ids --allow-root 2>/dev/null) --force --allow-root 2>/dev/null || true
+echo "==> Contenido inicial"
+for FILE in /seed/articles/*.md; do
+  [ -f "$FILE" ] || continue
+  SLUG=$(parse_frontmatter "$FILE" slug)
+  [ -n "$SLUG" ] || SLUG=$(basename "$FILE" .md | sed 's/^[0-9]*-//')
+  TITLE=$(parse_frontmatter "$FILE" title)
+  EXCERPT=$(parse_frontmatter "$FILE" excerpt)
+  CATEGORY_SLUGS=$(parse_categories "$FILE")
+  POST_ID=$(wp post list --post_type=post --name="$SLUG" --field=ID --allow-root 2>/dev/null | head -1)
 
-  for FILE in /seed/articles/*.md; do
-    [ -f "$FILE" ] || continue
-    SLUG=$(basename "$FILE" .md | sed 's/^[0-9]*-//')
-    TITLE=$(parse_frontmatter "$FILE" title)
-    CATS=$(parse_categories "$FILE")
-    # Quitar ** que YAML usa a veces
-    CATS_CLEAN=$(echo "$CATS" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^\*\*//;s/\*\*$//' | tr '\n' ',' | sed 's/,$//')
-
-    echo "  + $SLUG | cat=[$CATS_CLEAN] | title='$TITLE'"
-    if [ -n "$CATS_CLEAN" ]; then
-      # Strip YAML frontmatter, strip markdown headers, pipe content via stdin
-      awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" | \
-        sed 's/^#\+[[:space:]]*//' | \
-        sed 's/\*\*//g' | \
-        sed 's/^>//' | \
-        wp --path=/var/www/html post create - \
-        --post_type=post \
-        --post_status=publish \
-        --post_title="$TITLE" \
-        --post_name="$SLUG" \
-        --post_excerpt="$TITLE." \
-        --post_category="$CATS_CLEAN" \
-        --allow-root 2>&1 | tail -1
-    else
-      awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" | \
-        sed 's/^#\+[[:space:]]*//' | \
-        sed 's/\*\*//g' | \
-        sed 's/^>//' | \
-        wp --path=/var/www/html post create - \
-        --post_type=post \
-        --post_status=publish \
-        --post_title="$TITLE" \
-        --post_name="$SLUG" \
-        --post_excerpt="$TITLE." \
-        --allow-root 2>&1 | tail -1
-    fi
-
-    # Descargar imagen destacada y asignarla
-    IMG_URL=$(grep '^featured_image:' "$FILE" | head -1 | sed 's/^featured_image:[[:space:]]*//' | sed 's/^"//;s/"$//')
-    if [ -n "$IMG_URL" ]; then
-      POST_ID=$(wp --path=/var/www/html post list --post_type=post --name="$SLUG" --field=ID --allow-root 2>/dev/null | head -1)
-      if [ -n "$POST_ID" ]; then
-        # Si ya tiene imagen destacada, saltar
-        CURRENT_THUMB=$(wp --path=/var/www/html post get "$POST_ID" --field=meta_value --meta_key=_thumbnail_id --allow-root 2>/dev/null | head -1)
-        if [ -z "$CURRENT_THUMB" ]; then
-          echo "    downloading $IMG_URL"
-          curl -sL --max-time 30 -o /tmp/feat.jpg "$IMG_URL" 2>/dev/null
-          if [ -s /tmp/feat.jpg ] && [ "$(stat -c%s /tmp/feat.jpg 2>/dev/null)" -gt 1000 ]; then
-            wp --path=/var/www/html media import /tmp/feat.jpg --post_id="$POST_ID" --featured_image --allow-root 2>&1 | tail -1
-          else
-            echo "    image too small, skipping"
-          fi
-        fi
-      fi
-    fi
-    # Re-import post (no, ya existe - skip)
-    : # placeholder
-  done
-fi
-
-# Asignar menu a la posicion 'primary' del tema ColorMag (este es el fix que faltaba)
-MENU_ID=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
-if [ -n "$MENU_ID" ]; then
-  # Borra la "Sample Page" del WP
-  SAMPLE_ID=$(wp --path=/var/www/html post list --post_type=page --name="sample-page" --field=ID --allow-root 2>/dev/null | head -1)
-  if [ -n "$SAMPLE_ID" ]; then
-    echo "==> Eliminando Sample Page ID=$SAMPLE_ID"
-    wp --path=/var/www/html post delete "$SAMPLE_ID" --force --allow-root 2>&1 | tail -1
+  if [ -z "$POST_ID" ]; then
+    BODY_FILE="/tmp/culturinfo-${SLUG}.html"
+    awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" \
+      | sed 's/^#\+[[:space:]]*//' \
+      | sed 's/\*\*//g' \
+      | sed 's/^>[[:space:]]*//' > "$BODY_FILE"
+    POST_ID=$(wp post create "$BODY_FILE" \
+      --post_type=post \
+      --post_status=publish \
+      --post_title="$TITLE" \
+      --post_name="$SLUG" \
+      --post_excerpt="$EXCERPT" \
+      --porcelain \
+      --allow-root)
+    echo "  + $TITLE"
   fi
-  wp --path=/var/www/html post delete 1 --force --allow-root 2>/dev/null || true
 
-  # Borra menu default "Sample" si existe
-  SAMPLE_MENU=$(wp --path=/var/www/html menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Sample/ {gsub(/ /,"",$1); print $1; exit}')
-  [ -n "$SAMPLE_MENU" ] && [ "$SAMPLE_MENU" != "$MENU_ID" ] && wp --path=/var/www/html menu delete "$SAMPLE_MENU" --allow-root 2>/dev/null
+  if [ -n "$CATEGORY_SLUGS" ]; then
+    wp post term set "$POST_ID" category $CATEGORY_SLUGS --by=slug --allow-root >/dev/null
+  fi
 
-  echo "==> Asignando menu $MENU_ID via PHP"
-  CULTURINFO_MENU_ID=$MENU_ID wp --path=/var/www/html eval-file /seed/assign_menu.php --allow-root 2>&1 | tail -25
+  CURRENT_THUMB=$(wp post meta get "$POST_ID" _thumbnail_id --allow-root 2>/dev/null || true)
+  IMG_URL=$(parse_frontmatter "$FILE" featured_image)
+  if [ -z "$CURRENT_THUMB" ] && [ -n "$IMG_URL" ]; then
+    wp media import "$IMG_URL" --post_id="$POST_ID" --featured_image --allow-root >/dev/null 2>&1 || true
+  fi
+done
+
+echo "==> Página de contacto"
+CONTACT_ID=$(wp post list --post_type=page --name="contacto" --field=ID --allow-root 2>/dev/null | head -1)
+if [ -z "$CONTACT_ID" ]; then
+  wp post create \
+    --post_type=page \
+    --post_status=publish \
+    --post_title="Contacto" \
+    --post_name="contacto" \
+    --post_content="¿Quieres proponer una colaboración, enviar una historia o conversar con el equipo editorial? Escríbenos a través de los canales oficiales de Horizonte Cultural." \
+    --allow-root >/dev/null
 fi
 
-echo "==> ✓ Bootstrap done"
-wp --path=/var/www/html post list --post_type=post --post_status=publish --format=count --allow-root
+# Limpieza suave de contenido de ejemplo de WordPress; no elimina contenido editorial.
+SAMPLE_ID=$(wp post list --post_type=page --name="sample-page" --field=ID --allow-root 2>/dev/null | head -1)
+[ -n "$SAMPLE_ID" ] && wp post delete "$SAMPLE_ID" --force --allow-root >/dev/null 2>&1 || true
+wp post delete 1 --force --allow-root >/dev/null 2>&1 || true
+
+echo "==> ✓ Culturinfo listo"
+wp theme status culturinfo --allow-root | head -4
+wp post list --post_type=post --post_status=publish --format=count --allow-root

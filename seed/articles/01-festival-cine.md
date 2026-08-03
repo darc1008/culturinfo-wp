@@ -2,7 +2,7 @@
 title: "Festival de Cine Latinoamericano cierra su edición 2026 con récord de asistencia"
 slug: festival-cine-latinoamericano-2026
 date: 2026-07-12 10:00:00
-categories: [cultura]
+categories: [arte-plural]
 tags: [cine, festival, latinoamerica]
 status: publish
 featured_image: https://images.unsplash.com/photo-1489599735734-79b4625b3676?w=1200

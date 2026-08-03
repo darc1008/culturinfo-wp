@@ -2,7 +2,7 @@
 title: "Selección nacional se clasifica al Mundial tras épica remontada"
 slug: seleccion-mundial-remontada
 date: 2026-07-13 23:45:00
-categories: [deportes]
+categories: [con-palabras]
 tags: [futbol, seleccion, mundial]
 status: publish
 featured_image: https://images.unsplash.com/photo-1551958219-acbc608c6377?w=1200
