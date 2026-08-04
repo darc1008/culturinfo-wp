@@ -29,6 +29,7 @@ COPY supervisord.conf /etc/supervisor/conf.d/culturinfo.conf
 COPY seed/seed.sh /usr/local/bin/seed.sh
 COPY seed/articles /seed/articles
 COPY seed/assign_menu.php /seed/assign_menu.php
+COPY seed/configure_proxy.php /seed/configure_proxy.php
 COPY wp-content/themes/culturinfo /opt/culturinfo/theme
 COPY wp-content/plugins/culturinfo-ads /opt/culturinfo/plugins/culturinfo-ads
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

@@ -49,6 +49,9 @@ if ! wp core is-installed --allow-root >/dev/null 2>&1; then
 fi
 
 echo "==> Identidad y ajustes del sitio"
+SITE_URL="${WP_SITEURL:-https://culturinfo.statusloop.app}"
+wp option update home "$SITE_URL" --allow-root
+wp option update siteurl "$SITE_URL" --allow-root
 wp option update blogname "${WP_TITLE:-Culturinfo}" --allow-root
 wp option update blogdescription "${WP_TAGLINE:-Periódico digital de Horizonte Cultural}" --allow-root
 wp option update timezone_string "${WP_TIMEZONE:-America/Santo_Domingo}" --allow-root

@@ -46,6 +46,10 @@ Los anuncios de secciones y noticias pueden mostrarse en todas las páginas del 
 5. Copiar las variables de `.env.example` y definir contraseñas seguras.
 6. Desplegar. El contenedor instala WordPress, activa el tema, crea las secciones y configura el menú automáticamente.
 
+La aplicación está preparada para ejecutarse detrás del proxy HTTPS de
+Cloudflare/Coolify. En producción debe mantenerse `TRUST_PROXY_HEADERS=true`;
+en una instalación expuesta directamente sin proxy se debe usar `false`.
+
 ## Archivos principales
 
 ```text

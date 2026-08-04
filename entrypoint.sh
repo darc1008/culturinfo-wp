@@ -72,6 +72,11 @@ if [ ! -f wp-config.php ]; then
     --allow-root
 fi
 
+# WordPress está detrás del proxy HTTPS de Cloudflare/Coolify. Esta corrección
+# también se aplica a wp-config.php persistentes creados en despliegues previos.
+echo "[entrypoint] Configurando detección HTTPS del proxy..."
+php /seed/configure_proxy.php /var/www/html/wp-config.php
+
 # Run seed (foreground, with output to stdout)
 echo "[entrypoint] Ejecutando seed..."
 /usr/local/bin/seed.sh 2>&1 | tee /tmp/seed.log
