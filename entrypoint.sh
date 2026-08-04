@@ -82,6 +82,25 @@ echo "[entrypoint] Ejecutando seed..."
 /usr/local/bin/seed.sh 2>&1 | tee /tmp/seed.log
 echo "[seed] done"
 
+# El seed usa WP-CLI como root y puede crear uploads/año/mes con propietario
+# root. Apache necesita escritura únicamente en uploads para recibir medios.
+UPLOADS_DIR="/var/www/html/wp-content/uploads"
+if [ -L "$UPLOADS_DIR" ]; then
+  echo "ERROR: uploads no puede ser un enlace simbólico"
+  exit 1
+fi
+
+mkdir -p "$UPLOADS_DIR"
+UPLOADS_REAL="$(readlink -f "$UPLOADS_DIR")"
+if [ "$UPLOADS_REAL" != "$UPLOADS_DIR" ]; then
+  echo "ERROR: ruta de uploads inesperada: $UPLOADS_REAL"
+  exit 1
+fi
+
+echo "[entrypoint] Ajustando permisos de medios..."
+find "$UPLOADS_REAL" -xdev -type d -exec chown www-data:www-data {} + -exec chmod 775 {} +
+find "$UPLOADS_REAL" -xdev -type f -exec chown www-data:www-data {} + -exec chmod 664 {} +
+
 # Iniciar Apache
 echo "[entrypoint] Iniciando Apache..."
 exec apache2-foreground

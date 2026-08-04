@@ -52,6 +52,10 @@ en una instalación expuesta directamente sin proxy se debe usar `false`.
 El idioma del sitio se instala y activa desde `WP_LOCALE`; el valor recomendado
 para Culturinfo es `es_ES`.
 
+En cada arranque, el contenedor normaliza `wp-content/uploads` a propietario
+`www-data` con directorios `775` y archivos `664`. Esto permite que el panel
+cree las carpetas por año/mes y suba imágenes sin volver escribible el código.
+
 ## Archivos principales
 
 ```text
