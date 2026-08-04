@@ -24,7 +24,7 @@ if [ ! -f wp-config.php ]; then
     --dbpass="$DB_PASS" \
     --dbcharset=utf8mb4 \
     --dbcollate=utf8mb4_unicode_ci \
-    --locale=es_ES \
+    --locale="${WP_LOCALE:-es_ES}" \
     --allow-root
 fi
 
@@ -47,6 +47,11 @@ if ! wp core is-installed --allow-root >/dev/null 2>&1; then
     --skip-email \
     --allow-root
 fi
+
+echo "==> Idioma de WordPress"
+WP_LOCALE="${WP_LOCALE:-es_ES}"
+wp language core install "$WP_LOCALE" --activate --allow-root
+wp option update WPLANG "$WP_LOCALE" --allow-root
 
 echo "==> Identidad y ajustes del sitio"
 SITE_URL="${WP_SITEURL:-https://culturinfo.statusloop.app}"

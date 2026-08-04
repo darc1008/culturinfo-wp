@@ -68,7 +68,7 @@ if [ ! -f wp-config.php ]; then
     --dbpass="${MARIADB_PASSWORD}" \
     --dbcharset=utf8mb4 \
     --dbcollate=utf8mb4_unicode_ci \
-    --locale=es_ES \
+    --locale="${WP_LOCALE:-es_ES}" \
     --allow-root
 fi
 

@@ -49,6 +49,8 @@ Los anuncios de secciones y noticias pueden mostrarse en todas las páginas del 
 La aplicación está preparada para ejecutarse detrás del proxy HTTPS de
 Cloudflare/Coolify. En producción debe mantenerse `TRUST_PROXY_HEADERS=true`;
 en una instalación expuesta directamente sin proxy se debe usar `false`.
+El idioma del sitio se instala y activa desde `WP_LOCALE`; el valor recomendado
+para Culturinfo es `es_ES`.
 
 ## Archivos principales
 
