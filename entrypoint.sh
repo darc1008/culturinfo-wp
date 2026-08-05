@@ -29,6 +29,11 @@ mkdir -p /var/www/html/wp-content/plugins/culturinfo-ads
 cp -a /opt/culturinfo/plugins/culturinfo-ads/. /var/www/html/wp-content/plugins/culturinfo-ads/
 chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-ads
 
+echo "[entrypoint] Sincronizando autores editoriales..."
+mkdir -p /var/www/html/wp-content/plugins/culturinfo-authors
+cp -a /opt/culturinfo/plugins/culturinfo-authors/. /var/www/html/wp-content/plugins/culturinfo-authors/
+chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-authors
+
 # Asegurar permisos
 chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
 

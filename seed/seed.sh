@@ -85,6 +85,13 @@ else
   exit 1
 fi
 
+if wp plugin is-installed culturinfo-authors --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-authors --allow-root >/dev/null 2>&1 || true
+else
+  echo "ERROR: el gestor de autores de Culturinfo no fue copiado a WordPress"
+  exit 1
+fi
+
 echo "==> Plugins esenciales"
 for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
   if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then

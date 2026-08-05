@@ -32,6 +32,7 @@ COPY seed/assign_menu.php /seed/assign_menu.php
 COPY seed/configure_proxy.php /seed/configure_proxy.php
 COPY wp-content/themes/culturinfo /opt/culturinfo/theme
 COPY wp-content/plugins/culturinfo-ads /opt/culturinfo/plugins/culturinfo-ads
+COPY wp-content/plugins/culturinfo-authors /opt/culturinfo/plugins/culturinfo-authors
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh
 

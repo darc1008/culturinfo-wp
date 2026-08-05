@@ -27,6 +27,19 @@ El editor elige su ubicación desde una lista de espacios disponibles:
 
 Los anuncios de secciones y noticias pueden mostrarse en todas las páginas del tipo elegido o limitarse a una sección o artículo concreto. Los espacios sin anuncios publicados no generan huecos visibles.
 
+## Autores editoriales
+
+El plugin `Culturinfo — Autores editoriales` añade **Autores** al panel. Cada
+perfil admite nombre, fotografía destacada, biografía y enlaces a Facebook,
+Instagram, X/Twitter, LinkedIn, YouTube y sitio web. Al editar una noticia, el
+bloque **Autor de la noticia** permite elegir al escritor independientemente del
+usuario que inició sesión o publicó el contenido.
+
+En la noticia se muestra una firma compacta con foto junto al titular y una
+ficha biográfica completa con sus redes al terminar el contenido. Las entradas
+anteriores que aún no tengan escritor seleccionado usan el usuario de WordPress
+asignado como respaldo.
+
 ## Stack
 
 - WordPress 6.7 (PHP 8.3 + Apache)
