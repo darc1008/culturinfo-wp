@@ -152,6 +152,12 @@ parse_categories() {
 }
 
 echo "==> Contenido inicial"
+DEFAULT_AUTHOR_ID=$(wp user get "${WP_ADMIN_USER:-admin}" --field=ID --allow-root 2>/dev/null || true)
+if [ -z "$DEFAULT_AUTHOR_ID" ]; then
+  echo "ERROR: no se encontró el usuario autor ${WP_ADMIN_USER:-admin}"
+  exit 1
+fi
+
 for FILE in /seed/articles/*.md; do
   [ -f "$FILE" ] || continue
   SLUG=$(parse_frontmatter "$FILE" slug)
@@ -173,9 +179,15 @@ for FILE in /seed/articles/*.md; do
       --post_title="$TITLE" \
       --post_name="$SLUG" \
       --post_excerpt="$EXCERPT" \
+      --post_author="$DEFAULT_AUTHOR_ID" \
       --porcelain \
       --allow-root)
     echo "  + $TITLE"
+  fi
+
+  POST_AUTHOR_ID=$(wp post get "$POST_ID" --field=post_author --allow-root 2>/dev/null || true)
+  if [ "$POST_AUTHOR_ID" = "0" ]; then
+    wp post update "$POST_ID" --post_author="$DEFAULT_AUTHOR_ID" --allow-root >/dev/null
   fi
 
   if [ -n "$CATEGORY_SLUGS" ]; then

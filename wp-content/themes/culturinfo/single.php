@@ -9,6 +9,9 @@ get_header();
 <main id="main-content">
 <?php while (have_posts()) : the_post();
     $category = culturinfo_first_category();
+    $author_id = (int) get_the_author_meta('ID');
+    $author_name = $author_id > 0 ? get_the_author_meta('display_name', $author_id) : get_bloginfo('name');
+    $author_url = $author_id > 0 ? get_author_posts_url($author_id) : home_url('/');
 ?>
     <article <?php post_class(); ?>>
         <header class="article-header">
@@ -18,7 +21,10 @@ get_header();
                 <h1 class="article-title"><?php the_title(); ?></h1>
                 <?php if (has_excerpt()) : ?><p class="article-deck"><?php echo esc_html(get_the_excerpt()); ?></p><?php endif; ?>
                 <div class="article-byline">
-                    <span><?php esc_html_e('Por', 'culturinfo'); ?> <strong><?php the_author(); ?></strong></span>
+                    <span class="article-author">
+                        <?php esc_html_e('Escrito por', 'culturinfo'); ?>
+                        <a href="<?php echo esc_url($author_url); ?>" rel="author"><?php echo esc_html($author_name); ?></a>
+                    </span>
                     <span>·</span>
                     <time datetime="<?php echo esc_attr(get_the_date('c')); ?>"><?php echo esc_html(get_the_date('j \d\e F, Y')); ?></time>
                     <span>·</span>
