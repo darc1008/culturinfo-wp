@@ -92,8 +92,15 @@ else
   exit 1
 fi
 
+if wp plugin is-installed culturinfo-stats --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-stats --allow-root >/dev/null
+else
+  echo "ERROR: las estadisticas de Culturinfo no fueron copiadas a WordPress"
+  exit 1
+fi
+
 echo "==> Plugins esenciales"
-for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math; do
+for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math independent-analytics; do
   if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then
     wp plugin install "$PLUGIN" --activate --allow-root 2>&1 | tail -2
   else

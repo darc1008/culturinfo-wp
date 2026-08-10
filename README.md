@@ -40,6 +40,21 @@ ficha biográfica completa con sus redes al terminar el contenido. Las entradas
 anteriores que aún no tengan escritor seleccionado usan el usuario de WordPress
 asignado como respaldo.
 
+## Estadísticas
+
+El plugin propio `Culturinfo — Estadísticas editoriales` añade un panel de
+**Estadísticas** en WordPress con visitas, visitantes únicos diarios, noticias
+más leídas, escritores, secciones, fuentes de tráfico y dispositivos. También
+mide las impresiones, clics y CTR de cada anuncio cuando este llega a ser
+visible en pantalla.
+
+Los datos se guardan en la misma base de datos de WordPress. No se almacena la
+dirección IP: se utiliza un identificador irreversible que cambia diariamente
+y se elimina después de 91 días. Las visitas de usuarios conectados y robots
+conocidos no se contabilizan. Independent Analytics se instala como complemento
+gratuito para análisis generales más detallados; ninguna parte requiere una
+suscripción.
+
 ## Stack
 
 - WordPress 6.7 (PHP 8.3 + Apache)

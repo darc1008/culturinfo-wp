@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Culturinfo — Gestor de anuncios
  * Description: Permite crear anuncios y asignarlos a espacios de la portada, las secciones y las noticias.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Horizonte Cultural
  * Text Domain: culturinfo-ads
  */
@@ -307,7 +307,14 @@ function culturinfo_ads_get($slot, $context_id = 0) {
 
     ob_start();
     ?>
-    <aside class="culturinfo-ad culturinfo-ad--<?php echo esc_attr($slot_class); ?>" aria-label="Publicidad">
+    <aside
+        class="culturinfo-ad culturinfo-ad--<?php echo esc_attr($slot_class); ?>"
+        aria-label="Publicidad"
+        data-culturinfo-ad="<?php echo esc_attr($ad->ID); ?>"
+        data-culturinfo-slot="<?php echo esc_attr($slot); ?>"
+        data-culturinfo-context-type="<?php echo esc_attr(0 === strpos($slot, 'home_') ? 'home' : (0 === strpos($slot, 'section_') ? 'section' : 'article')); ?>"
+        data-culturinfo-context-id="<?php echo esc_attr(absint($context_id)); ?>"
+    >
         <span class="culturinfo-ad__label">Publicidad</span>
         <?php if ($url) : ?><a class="culturinfo-ad__link" href="<?php echo esc_url($url); ?>"<?php echo $target . $rel; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>><?php endif; ?>
             <?php if (has_post_thumbnail($ad)) : ?>

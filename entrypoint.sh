@@ -34,6 +34,11 @@ mkdir -p /var/www/html/wp-content/plugins/culturinfo-authors
 cp -a /opt/culturinfo/plugins/culturinfo-authors/. /var/www/html/wp-content/plugins/culturinfo-authors/
 chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-authors
 
+echo "[entrypoint] Sincronizando estadisticas Culturinfo..."
+mkdir -p /var/www/html/wp-content/plugins/culturinfo-stats
+cp -a /opt/culturinfo/plugins/culturinfo-stats/. /var/www/html/wp-content/plugins/culturinfo-stats/
+chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-stats
+
 # Asegurar permisos
 chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
 
