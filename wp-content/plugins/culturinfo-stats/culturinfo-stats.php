@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Culturinfo — Estadísticas editoriales
  * Description: Estadísticas privadas de noticias, escritores, secciones y publicidad, sin servicios de pago.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Horizonte Cultural
  * Text Domain: culturinfo-stats
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CULTURINFO_STATS_VERSION', '1.0.0');
+define('CULTURINFO_STATS_VERSION', '1.1.0');
 
 function culturinfo_stats_tables() {
     global $wpdb;
@@ -92,26 +92,30 @@ function culturinfo_stats_should_track() {
     return !culturinfo_stats_is_bot();
 }
 
-function culturinfo_stats_increment($metric, $object_type, $object_id = 0, $dimension = '', $dimension_value = '') {
+function culturinfo_stats_increment($metric, $object_type, $object_id = 0, $dimension = '', $dimension_value = '', $amount = 1) {
     global $wpdb;
     $table = culturinfo_stats_tables()['daily'];
     $date = wp_date('Y-m-d');
     $sql = $wpdb->prepare(
         "INSERT INTO {$table} (stat_date,metric,object_type,object_id,dimension,dimension_value,total)
-         VALUES (%s,%s,%s,%d,%s,%s,1)
-         ON DUPLICATE KEY UPDATE total = total + 1",
+         VALUES (%s,%s,%s,%d,%s,%s,%d)
+         ON DUPLICATE KEY UPDATE total = total + VALUES(total)",
         $date,
         sanitize_key($metric),
         sanitize_key($object_type),
         absint($object_id),
         sanitize_key($dimension),
-        substr(sanitize_text_field($dimension_value), 0, 64)
+        substr(sanitize_text_field($dimension_value), 0, 64),
+        max(1, min(3600, absint($amount)))
     );
     $wpdb->query($sql);
 }
 
 function culturinfo_stats_visitor_hash() {
     $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+    if (!empty($_SERVER['HTTP_CF_RAY']) && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
+    }
     $agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
     return hash_hmac('sha256', wp_date('Y-m-d') . '|' . $ip . '|' . $agent, wp_salt('auth'));
 }
@@ -160,6 +164,11 @@ function culturinfo_stats_device() {
     return wp_is_mobile() ? 'movil' : 'computadora';
 }
 
+function culturinfo_stats_country() {
+    $country = isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']))) : 'XX';
+    return preg_match('/^[A-Z]{2}$/', $country) || $country === 'T1' ? $country : 'XX';
+}
+
 function culturinfo_stats_page_context() {
     if (is_front_page() || is_home()) {
         return array('home', 0);
@@ -188,6 +197,7 @@ function culturinfo_stats_track_pageview() {
     culturinfo_stats_increment('pageview', $type, $id);
     culturinfo_stats_increment('pageview', $type, $id, 'source', culturinfo_stats_source());
     culturinfo_stats_increment('pageview', $type, $id, 'device', culturinfo_stats_device());
+    culturinfo_stats_increment('pageview', $type, $id, 'country', culturinfo_stats_country());
     culturinfo_stats_store_visitor('site', 0);
     culturinfo_stats_store_visitor($type, $id);
 
@@ -209,7 +219,9 @@ function culturinfo_stats_enqueue() {
     }
     wp_enqueue_script('culturinfo-stats', plugin_dir_url(__FILE__) . 'assets/stats.js', array(), CULTURINFO_STATS_VERSION, true);
     wp_localize_script('culturinfo-stats', 'culturinfoStats', array(
-        'endpoint' => esc_url_raw(rest_url('culturinfo-stats/v1/ad-event')),
+        'adEndpoint'      => esc_url_raw(rest_url('culturinfo-stats/v1/ad-event')),
+        'articleEndpoint' => esc_url_raw(rest_url('culturinfo-stats/v1/article-event')),
+        'articleId'       => is_singular('post') ? get_queried_object_id() : 0,
     ));
 }
 add_action('wp_enqueue_scripts', 'culturinfo_stats_enqueue', 30);
@@ -256,6 +268,30 @@ function culturinfo_stats_ad_event(WP_REST_Request $request) {
     culturinfo_stats_increment($metric, 'ad', $ad_id);
     culturinfo_stats_increment($metric, 'ad', $ad_id, 'slot', $slot);
     culturinfo_stats_increment($metric, 'ad', $ad_id, 'context', $context_type . ':' . $context_id);
+    culturinfo_stats_increment($metric, 'ad', $ad_id, 'country', culturinfo_stats_country());
+    return rest_ensure_response(array('recorded' => true));
+}
+
+function culturinfo_stats_article_event(WP_REST_Request $request) {
+    if (!culturinfo_stats_same_site_request() || culturinfo_stats_is_bot()) {
+        return new WP_Error('invalid_origin', 'Solicitud no permitida.', array('status' => 403));
+    }
+    $post_id = absint($request->get_param('post_id'));
+    $event = sanitize_key($request->get_param('event'));
+    $value = absint($request->get_param('value'));
+    if (!$post_id || get_post_type($post_id) !== 'post' || get_post_status($post_id) !== 'publish') {
+        return new WP_Error('invalid_article', 'La noticia no existe.', array('status' => 400));
+    }
+    if ($event === 'scroll' && in_array($value, array(25, 50, 75, 100), true)) {
+        culturinfo_stats_increment('article_scroll', 'post', $post_id, 'depth', (string) $value);
+    } elseif ($event === 'time' && $value >= 1 && $value <= 60) {
+        culturinfo_stats_increment('article_time', 'post', $post_id, '', '', $value);
+        if ($request->get_param('session_start')) {
+            culturinfo_stats_increment('article_session', 'post', $post_id);
+        }
+    } else {
+        return new WP_Error('invalid_event', 'Evento no válido.', array('status' => 400));
+    }
     return rest_ensure_response(array('recorded' => true));
 }
 
@@ -272,6 +308,17 @@ function culturinfo_stats_register_rest() {
             'context_id'  => array('required' => false, 'type' => 'integer', 'default' => 0),
         ),
     ));
+    register_rest_route('culturinfo-stats/v1', '/article-event', array(
+        'methods'             => WP_REST_Server::CREATABLE,
+        'callback'            => 'culturinfo_stats_article_event',
+        'permission_callback' => '__return_true',
+        'args'                => array(
+            'post_id'       => array('required' => true, 'type' => 'integer'),
+            'event'         => array('required' => true, 'type' => 'string'),
+            'value'         => array('required' => true, 'type' => 'integer'),
+            'session_start' => array('required' => false, 'type' => 'boolean', 'default' => false),
+        ),
+    ));
 }
 add_action('rest_api_init', 'culturinfo_stats_register_rest');
 
@@ -285,9 +332,15 @@ function culturinfo_stats_range() {
     return in_array($days, array(7, 30, 90), true) ? $days : 30;
 }
 
-function culturinfo_stats_sum($metric, $start, $dimension = '') {
+function culturinfo_stats_sum($metric, $start, $dimension = '', $end = '') {
     global $wpdb;
     $table = culturinfo_stats_tables()['daily'];
+    if ($end) {
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(total),0) FROM {$table} WHERE metric=%s AND stat_date BETWEEN %s AND %s AND dimension=%s",
+            $metric, $start, $end, $dimension
+        ));
+    }
     return (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COALESCE(SUM(total),0) FROM {$table} WHERE metric=%s AND stat_date >= %s AND dimension=%s",
         $metric, $start, $dimension
@@ -307,7 +360,45 @@ function culturinfo_stats_label($type, $value) {
         list($kind, $id) = array_pad(explode(':', $value, 2), 2, 0);
         return $kind === 'e' ? get_the_title(absint($id)) : get_the_author_meta('display_name', absint($id));
     }
+    if ($type === 'country') {
+        $labels = array(
+            'AR'=>'Argentina','BO'=>'Bolivia','BR'=>'Brasil','CA'=>'Canadá','CL'=>'Chile','CN'=>'China','CO'=>'Colombia',
+            'CR'=>'Costa Rica','CU'=>'Cuba','DE'=>'Alemania','DO'=>'República Dominicana','EC'=>'Ecuador','ES'=>'España',
+            'FR'=>'Francia','GB'=>'Reino Unido','GT'=>'Guatemala','HN'=>'Honduras','HT'=>'Haití','IT'=>'Italia','JP'=>'Japón',
+            'MX'=>'México','NI'=>'Nicaragua','NL'=>'Países Bajos','PA'=>'Panamá','PE'=>'Perú','PR'=>'Puerto Rico','PT'=>'Portugal',
+            'PY'=>'Paraguay','SV'=>'El Salvador','US'=>'Estados Unidos','UY'=>'Uruguay','VE'=>'Venezuela','T1'=>'Red Tor','XX'=>'Desconocido',
+        );
+        return isset($labels[$value]) ? $labels[$value] . ' (' . $value . ')' : $value;
+    }
     return $value;
+}
+
+function culturinfo_stats_format_duration($seconds) {
+    $seconds = absint($seconds);
+    if ($seconds < 60) {
+        return $seconds . ' s';
+    }
+    $minutes = (int) floor($seconds / 60);
+    return $minutes . ' min ' . ($seconds % 60) . ' s';
+}
+
+function culturinfo_stats_metric_card($label, $value, $previous, $suffix = '', $format = 'number') {
+    $difference = 0.0;
+    $trend_class = 'is-neutral';
+    if ((float) $previous > 0) {
+        $difference = (((float) $value - (float) $previous) / (float) $previous) * 100;
+        $trend_class = $difference > 0 ? 'is-up' : ($difference < 0 ? 'is-down' : 'is-neutral');
+        $trend = ($difference > 0 ? '+' : '') . number_format_i18n($difference, 1) . '%';
+    } elseif ((float) $value > 0) {
+        $trend = 'Nuevo';
+        $trend_class = 'is-up';
+    } else {
+        $trend = 'Sin cambio';
+    }
+    ?>
+    <?php $display_value = $format === 'duration' ? culturinfo_stats_format_duration($value) : number_format_i18n($value, $suffix === '%' ? 2 : 0) . $suffix; ?>
+    <div><span><?php echo esc_html($label); ?></span><strong><?php echo esc_html($display_value); ?></strong><small class="<?php echo esc_attr($trend_class); ?>"><?php echo esc_html($trend); ?> vs. período anterior</small></div>
+    <?php
 }
 
 function culturinfo_stats_dashboard() {
@@ -318,25 +409,50 @@ function culturinfo_stats_dashboard() {
     $table = culturinfo_stats_tables()['daily'];
     $visitors_table = culturinfo_stats_tables()['visitors'];
     $days = culturinfo_stats_range();
+    $end = wp_date('Y-m-d');
     $start = wp_date('Y-m-d', time() - (($days - 1) * DAY_IN_SECONDS));
-    $views = culturinfo_stats_sum('pageview', $start);
-    $impressions = culturinfo_stats_sum('ad_impression', $start);
-    $clicks = culturinfo_stats_sum('ad_click', $start);
-    $visitors = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$visitors_table} WHERE object_type='site' AND object_id=0 AND visit_date >= %s", $start));
+    $previous_end = wp_date('Y-m-d', strtotime($start . ' -1 day'));
+    $previous_start = wp_date('Y-m-d', strtotime($previous_end . ' -' . ($days - 1) . ' days'));
+    $views = culturinfo_stats_sum('pageview', $start, '', $end);
+    $impressions = culturinfo_stats_sum('ad_impression', $start, '', $end);
+    $clicks = culturinfo_stats_sum('ad_click', $start, '', $end);
+    $previous_views = culturinfo_stats_sum('pageview', $previous_start, '', $previous_end);
+    $previous_impressions = culturinfo_stats_sum('ad_impression', $previous_start, '', $previous_end);
+    $previous_clicks = culturinfo_stats_sum('ad_click', $previous_start, '', $previous_end);
+    $visitors = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$visitors_table} WHERE object_type='site' AND object_id=0 AND visit_date BETWEEN %s AND %s", $start, $end));
+    $previous_visitors = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$visitors_table} WHERE object_type='site' AND object_id=0 AND visit_date BETWEEN %s AND %s", $previous_start, $previous_end));
     $ctr = $impressions ? ($clicks / $impressions) * 100 : 0;
-    $daily = $wpdb->get_results($wpdb->prepare("SELECT stat_date,SUM(total) total FROM {$table} WHERE metric='pageview' AND dimension='' AND stat_date >= %s GROUP BY stat_date ORDER BY stat_date", $start));
-    $top_posts = $wpdb->get_results($wpdb->prepare("SELECT object_id,SUM(total) total FROM {$table} WHERE metric='pageview' AND object_type='post' AND dimension='' AND stat_date >= %s GROUP BY object_id ORDER BY total DESC LIMIT 10", $start));
+    $previous_ctr = $previous_impressions ? ($previous_clicks / $previous_impressions) * 100 : 0;
+    $engaged_seconds = culturinfo_stats_sum('article_time', $start, '', $end);
+    $engaged_sessions = culturinfo_stats_sum('article_session', $start, '', $end);
+    $previous_engaged_seconds = culturinfo_stats_sum('article_time', $previous_start, '', $previous_end);
+    $previous_engaged_sessions = culturinfo_stats_sum('article_session', $previous_start, '', $previous_end);
+    $average_time = $engaged_sessions ? (int) round($engaged_seconds / $engaged_sessions) : 0;
+    $previous_average_time = $previous_engaged_sessions ? (int) round($previous_engaged_seconds / $previous_engaged_sessions) : 0;
+    $post_views = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(total),0) FROM {$table} WHERE metric='pageview' AND object_type='post' AND dimension='' AND stat_date BETWEEN %s AND %s", $start, $end));
+    $previous_post_views = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(total),0) FROM {$table} WHERE metric='pageview' AND object_type='post' AND dimension='' AND stat_date BETWEEN %s AND %s", $previous_start, $previous_end));
+    $completions = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(total),0) FROM {$table} WHERE metric='article_scroll' AND dimension='depth' AND dimension_value='100' AND stat_date BETWEEN %s AND %s", $start, $end));
+    $previous_completions = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(total),0) FROM {$table} WHERE metric='article_scroll' AND dimension='depth' AND dimension_value='100' AND stat_date BETWEEN %s AND %s", $previous_start, $previous_end));
+    $completion_rate = $post_views ? ($completions / $post_views) * 100 : 0;
+    $previous_completion_rate = $previous_post_views ? ($previous_completions / $previous_post_views) * 100 : 0;
+    $daily = $wpdb->get_results($wpdb->prepare("SELECT stat_date,SUM(total) total FROM {$table} WHERE metric='pageview' AND dimension='' AND stat_date BETWEEN %s AND %s GROUP BY stat_date ORDER BY stat_date", $start, $end));
+    $top_posts = $wpdb->get_results($wpdb->prepare("SELECT object_id,SUM(total) total FROM {$table} WHERE metric='pageview' AND object_type='post' AND dimension='' AND stat_date BETWEEN %s AND %s GROUP BY object_id ORDER BY total DESC LIMIT 10", $start, $end));
+    $completed_posts = $wpdb->get_results($wpdb->prepare("SELECT object_id,SUM(total) total FROM {$table} WHERE metric='article_scroll' AND dimension='depth' AND dimension_value='100' AND stat_date BETWEEN %s AND %s GROUP BY object_id ORDER BY total DESC LIMIT 10", $start, $end));
     $dimensions = array();
-    foreach (array('writer', 'category', 'source', 'device') as $dimension) {
-        $dimensions[$dimension] = $wpdb->get_results($wpdb->prepare("SELECT dimension_value,SUM(total) total FROM {$table} WHERE metric='pageview' AND dimension=%s AND stat_date >= %s GROUP BY dimension_value ORDER BY total DESC LIMIT 10", $dimension, $start));
+    foreach (array('writer', 'category', 'source', 'device', 'country') as $dimension) {
+        $dimensions[$dimension] = $wpdb->get_results($wpdb->prepare("SELECT dimension_value,SUM(total) total FROM {$table} WHERE metric='pageview' AND dimension=%s AND stat_date BETWEEN %s AND %s GROUP BY dimension_value ORDER BY total DESC LIMIT 10", $dimension, $start, $end));
     }
     $ads = $wpdb->get_results($wpdb->prepare(
         "SELECT object_id,
         dimension_value slot,
         SUM(CASE WHEN metric='ad_impression' THEN total ELSE 0 END) impressions,
         SUM(CASE WHEN metric='ad_click' THEN total ELSE 0 END) clicks
-        FROM {$table} WHERE object_type='ad' AND dimension='slot' AND stat_date >= %s GROUP BY object_id,dimension_value ORDER BY impressions DESC LIMIT 20",
-        $start
+        FROM {$table} WHERE object_type='ad' AND dimension='slot' AND stat_date BETWEEN %s AND %s GROUP BY object_id,dimension_value ORDER BY impressions DESC LIMIT 20",
+        $start, $end
+    ));
+    $ad_countries = $wpdb->get_results($wpdb->prepare(
+        "SELECT dimension_value,SUM(total) total FROM {$table} WHERE metric='ad_impression' AND object_type='ad' AND dimension='country' AND stat_date BETWEEN %s AND %s GROUP BY dimension_value ORDER BY total DESC LIMIT 10",
+        $start, $end
     ));
     $max_daily = 1;
     foreach ($daily as $row) { $max_daily = max($max_daily, (int) $row->total); }
@@ -350,11 +466,13 @@ function culturinfo_stats_dashboard() {
             <?php endforeach; ?>
         </nav>
         <div class="culturinfo-stats-cards">
-            <div><span>Visitas a páginas</span><strong><?php echo esc_html(number_format_i18n($views)); ?></strong></div>
-            <div><span>Visitantes únicos diarios</span><strong><?php echo esc_html(number_format_i18n($visitors)); ?></strong></div>
-            <div><span>Impresiones de anuncios</span><strong><?php echo esc_html(number_format_i18n($impressions)); ?></strong></div>
-            <div><span>Clics en anuncios</span><strong><?php echo esc_html(number_format_i18n($clicks)); ?></strong></div>
-            <div><span>CTR publicitario</span><strong><?php echo esc_html(number_format_i18n($ctr, 2)); ?>%</strong></div>
+            <?php culturinfo_stats_metric_card('Visitas a páginas', $views, $previous_views); ?>
+            <?php culturinfo_stats_metric_card('Visitantes únicos diarios', $visitors, $previous_visitors); ?>
+            <?php culturinfo_stats_metric_card('Tiempo medio de lectura', $average_time, $previous_average_time, '', 'duration'); ?>
+            <?php culturinfo_stats_metric_card('Lecturas completadas', $completion_rate, $previous_completion_rate, '%'); ?>
+            <?php culturinfo_stats_metric_card('Impresiones de anuncios', $impressions, $previous_impressions); ?>
+            <?php culturinfo_stats_metric_card('Clics en anuncios', $clicks, $previous_clicks); ?>
+            <?php culturinfo_stats_metric_card('CTR publicitario', $ctr, $previous_ctr, '%'); ?>
         </div>
         <section class="culturinfo-stats-panel culturinfo-stats-chart"><h2>Visitas diarias</h2>
             <?php if (!$daily) : ?><p>Aún no hay visitas registradas en este período.</p><?php else : foreach ($daily as $row) : ?>
@@ -367,6 +485,9 @@ function culturinfo_stats_dashboard() {
             <?php culturinfo_stats_table('Por sección', $dimensions['category'], function($row){ $term=get_term(absint($row->dimension_value),'category'); return $term && !is_wp_error($term) ? $term->name : 'Sección eliminada'; }); ?>
             <?php culturinfo_stats_table('Fuentes de tráfico', $dimensions['source'], function($row){ return culturinfo_stats_label('source', $row->dimension_value); }); ?>
             <?php culturinfo_stats_table('Dispositivos', $dimensions['device'], function($row){ return culturinfo_stats_label('device', $row->dimension_value); }); ?>
+            <?php culturinfo_stats_table('Países de lectores', $dimensions['country'], function($row){ return culturinfo_stats_label('country', $row->dimension_value); }); ?>
+            <?php culturinfo_stats_table('Noticias terminadas', $completed_posts, function($row){ return get_the_title($row->object_id) ?: 'Entrada eliminada'; }); ?>
+            <?php culturinfo_stats_table('Países de impresiones publicitarias', $ad_countries, function($row){ return culturinfo_stats_label('country', $row->dimension_value); }); ?>
         </div>
         <section class="culturinfo-stats-panel"><h2>Rendimiento de anuncios</h2>
             <table class="widefat striped"><thead><tr><th>Anuncio</th><th>Ubicación</th><th>Impresiones</th><th>Clics</th><th>CTR</th></tr></thead><tbody>
@@ -374,6 +495,7 @@ function culturinfo_stats_dashboard() {
                 <tr><td><a href="<?php echo esc_url(get_edit_post_link($ad->object_id)); ?>"><?php echo esc_html(get_the_title($ad->object_id) ?: 'Anuncio eliminado'); ?></a></td><td><?php echo esc_html(isset($slots[$ad->slot]) ? $slots[$ad->slot] : $ad->slot); ?></td><td><?php echo esc_html(number_format_i18n($ad->impressions)); ?></td><td><?php echo esc_html(number_format_i18n($ad->clicks)); ?></td><td><?php echo esc_html(number_format_i18n($ad_ctr,2)); ?>%</td></tr>
             <?php endforeach; endif; ?></tbody></table>
         </section>
+        <p><a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=culturinfo_stats_export_ads&days=' . $days), 'culturinfo_stats_export_ads')); ?>">Descargar reporte publicitario CSV</a></p>
         <?php if (is_plugin_active('independent-analytics/iawp.php')) : ?><p><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=independent-analytics')); ?>">Abrir análisis detallado de Independent Analytics</a></p><?php endif; ?>
     </div>
     <?php
@@ -384,6 +506,64 @@ function culturinfo_stats_table($title, $rows, $label_callback) {
     <?php if (!$rows) : ?><tr><td colspan="2">Sin datos todavía.</td></tr><?php else : foreach ($rows as $row) : ?><tr><td><?php echo esc_html(call_user_func($label_callback, $row)); ?></td><td><?php echo esc_html(number_format_i18n($row->total)); ?></td></tr><?php endforeach; endif; ?>
     </tbody></table></section><?php
 }
+
+function culturinfo_stats_csv_cell($value) {
+    $value = wp_strip_all_tags((string) $value);
+    return preg_match('/^[=+\-@]/', $value) ? "'" . $value : $value;
+}
+
+function culturinfo_stats_export_ads() {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('No tienes permisos para exportar estas estadísticas.', 'culturinfo-stats'));
+    }
+    check_admin_referer('culturinfo_stats_export_ads');
+    global $wpdb;
+    $table = culturinfo_stats_tables()['daily'];
+    $days = culturinfo_stats_range();
+    $end = wp_date('Y-m-d');
+    $start = wp_date('Y-m-d', time() - (($days - 1) * DAY_IN_SECONDS));
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT object_id,dimension,dimension_value,
+        SUM(CASE WHEN metric='ad_impression' THEN total ELSE 0 END) impressions,
+        SUM(CASE WHEN metric='ad_click' THEN total ELSE 0 END) clicks
+        FROM {$table}
+        WHERE object_type='ad' AND dimension IN ('slot','country') AND stat_date BETWEEN %s AND %s
+        GROUP BY object_id,dimension,dimension_value
+        ORDER BY object_id,dimension,impressions DESC",
+        $start, $end
+    ));
+    $filename = 'culturinfo-publicidad-' . $start . '-a-' . $end . '.csv';
+    nocache_headers();
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('X-Content-Type-Options: nosniff');
+    $output = fopen('php://output', 'w');
+    if (!$output) {
+        wp_die(esc_html__('No fue posible generar el reporte.', 'culturinfo-stats'));
+    }
+    fwrite($output, "\xEF\xBB\xBF");
+    fputcsv($output, array('Tipo', 'Anuncio', 'Ubicación o país', 'Impresiones', 'Clics', 'CTR', 'Desde', 'Hasta'), ',', '"', '');
+    $slots = function_exists('culturinfo_ads_slots') ? culturinfo_ads_slots() : array();
+    foreach ($rows as $row) {
+        $label = $row->dimension === 'country'
+            ? culturinfo_stats_label('country', $row->dimension_value)
+            : (isset($slots[$row->dimension_value]) ? $slots[$row->dimension_value] : $row->dimension_value);
+        $ctr = $row->impressions ? ((int) $row->clicks / (int) $row->impressions) * 100 : 0;
+        fputcsv($output, array(
+            $row->dimension === 'country' ? 'País' : 'Ubicación',
+            culturinfo_stats_csv_cell(get_the_title($row->object_id) ?: 'Anuncio eliminado'),
+            culturinfo_stats_csv_cell($label),
+            (int) $row->impressions,
+            (int) $row->clicks,
+            number_format($ctr, 2, '.', '') . '%',
+            $start,
+            $end,
+        ), ',', '"', '');
+    }
+    fclose($output);
+    exit;
+}
+add_action('admin_post_culturinfo_stats_export_ads', 'culturinfo_stats_export_ads');
 
 function culturinfo_stats_admin_styles($hook) {
     if ($hook !== 'toplevel_page_culturinfo-stats') { return; }

@@ -44,9 +44,16 @@ asignado como respaldo.
 
 El plugin propio `Culturinfo — Estadísticas editoriales` añade un panel de
 **Estadísticas** en WordPress con visitas, visitantes únicos diarios, noticias
-más leídas, escritores, secciones, fuentes de tráfico y dispositivos. También
-mide las impresiones, clics y CTR de cada anuncio cuando este llega a ser
-visible en pantalla.
+más leídas, escritores, secciones, fuentes de tráfico, dispositivos y países
+proporcionados por Cloudflare. También mide la profundidad y el tiempo activo
+de lectura, compara cada período con el anterior y registra impresiones, clics
+y CTR de cada anuncio cuando este llega a ser visible en pantalla. El reporte
+publicitario puede descargarse como CSV desde el mismo panel.
+
+Para identificar países, el registro DNS debe estar en modo proxy (nube
+naranja) y Cloudflare debe enviar `CF-IPCountry` mediante **IP Geolocation** o
+el Managed Transform de ubicación. Si la cabecera no está disponible, la visita
+se registra como país desconocido sin afectar las demás métricas.
 
 Los datos se guardan en la misma base de datos de WordPress. No se almacena la
 dirección IP: se utiliza un identificador irreversible que cambia diariamente
