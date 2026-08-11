@@ -30,6 +30,7 @@ COPY seed/seed.sh /usr/local/bin/seed.sh
 COPY seed/articles /seed/articles
 COPY seed/assign_menu.php /seed/assign_menu.php
 COPY seed/configure_proxy.php /seed/configure_proxy.php
+COPY seed/configure_rank_math.php /seed/configure_rank_math.php
 COPY wp-content/themes/culturinfo /opt/culturinfo/theme
 COPY wp-content/plugins/culturinfo-ads /opt/culturinfo/plugins/culturinfo-ads
 COPY wp-content/plugins/culturinfo-authors /opt/culturinfo/plugins/culturinfo-authors

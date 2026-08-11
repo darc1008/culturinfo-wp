@@ -62,6 +62,14 @@ conocidos no se contabilizan. Independent Analytics se instala como complemento
 gratuito para análisis generales más detallados; ninguna parte requiere una
 suscripción.
 
+## SEO y vistas previas al compartir
+
+Rank Math SEO se configura automáticamente en cada arranque, sin conectar una
+cuenta externa. La portada, secciones y noticias generan título, descripción,
+canonical, Open Graph, Twitter Card y datos estructurados. Para que WhatsApp,
+Facebook y otras redes muestren la miniatura de una noticia, basta con asignarle
+una **imagen destacada** en WordPress; Rank Math la publica como `og:image`.
+
 ## Stack
 
 - WordPress 6.7 (PHP 8.3 + Apache)

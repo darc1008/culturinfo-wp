@@ -110,6 +110,10 @@ done
 wp option update classic-editor-replace "classic" --allow-root
 wp option update classic-editor-allow-users "allow" --allow-root
 
+echo "==> Configurando SEO y vistas previas sociales"
+wp eval-file /seed/configure_rank_math.php --allow-root
+wp rewrite flush --hard --allow-root
+
 echo "==> Secciones editoriales"
 declare -A SECTIONS=(
   [con-palabras]="Con Palabras"
