@@ -99,6 +99,13 @@ else
   exit 1
 fi
 
+if wp plugin is-installed culturinfo-publishing --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-publishing --allow-root >/dev/null
+else
+  echo "ERROR: la programacion editorial de Culturinfo no fue copiada a WordPress"
+  exit 1
+fi
+
 echo "==> Plugins esenciales"
 for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math independent-analytics; do
   if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then

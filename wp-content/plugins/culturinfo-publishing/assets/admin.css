@@ -1,0 +1,19 @@
+.culturinfo-publishing-wrap { max-width: 1280px; }
+.culturinfo-publishing-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.culturinfo-publishing-summary > div,.culturinfo-publishing-panel { box-sizing:border-box; border:1px solid #dcdcde; border-radius:7px; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.culturinfo-publishing-summary > div { padding:18px; }
+.culturinfo-publishing-summary span { display:block; color:#646970; font-size:12px; }
+.culturinfo-publishing-summary strong { display:block; margin-top:7px; color:#0b2857; font-size:19px; }
+.culturinfo-publishing-summary strong.is-on { color:#08783f; }
+.culturinfo-publishing-summary strong.is-off { color:#b32d2e; }
+.culturinfo-publishing-panel { margin:18px 0; padding:20px; }
+.culturinfo-publishing-panel h2 { margin-top:0; }
+.culturinfo-publishing-toggle { display:inline-block; margin:4px 0 18px; font-size:15px; font-weight:600; }
+.culturinfo-publishing-fields { display:flex; flex-wrap:wrap; gap:18px; }
+.culturinfo-publishing-fields label { display:grid; gap:6px; min-width:220px; font-weight:600; }
+.culturinfo-publishing-fields select,.culturinfo-publishing-fields input { width:100%; }
+.culturinfo-publishing-table th:first-child,.culturinfo-publishing-table td:first-child { width:110px; text-align:center; }
+.culturinfo-publishing-table select,.culturinfo-publishing-table input[type="time"] { min-width:130px; }
+.culturinfo-publishing-manual { border-left:4px solid #f36b10; }
+@media (max-width:900px) { .culturinfo-publishing-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .culturinfo-publishing-table { display:block; overflow-x:auto; } }
+@media (max-width:520px) { .culturinfo-publishing-summary { grid-template-columns:1fr; } }

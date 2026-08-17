@@ -35,6 +35,7 @@ COPY wp-content/themes/culturinfo /opt/culturinfo/theme
 COPY wp-content/plugins/culturinfo-ads /opt/culturinfo/plugins/culturinfo-ads
 COPY wp-content/plugins/culturinfo-authors /opt/culturinfo/plugins/culturinfo-authors
 COPY wp-content/plugins/culturinfo-stats /opt/culturinfo/plugins/culturinfo-stats
+COPY wp-content/plugins/culturinfo-publishing /opt/culturinfo/plugins/culturinfo-publishing
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh
 

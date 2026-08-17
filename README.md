@@ -70,6 +70,20 @@ canonical, Open Graph, Twitter Card y datos estructurados. Para que WhatsApp,
 Facebook y otras redes muestren la miniatura de una noticia, basta con asignarle
 una **imagen destacada** en WordPress; Rank Math la publica como `og:image`.
 
+## Programación editorial
+
+El plugin propio `Culturinfo — Programación editorial` añade el menú
+**Programación** al panel. Un editor puede elegir el día y la hora semanal por
+defecto para publicar en bloque todas las noticias guardadas como borrador, y
+configurar excepciones para secciones concretas. El proceso revisa los horarios
+cada 15 minutos con la zona horaria de WordPress, conserva un historial y ofrece
+una ejecución manual protegida por confirmación.
+
+La automatización se instala desactivada para no publicar borradores existentes
+por sorpresa. Al guardar o cambiar un calendario comienza un ciclo nuevo; si el
+sitio no estaba disponible a la hora prevista, la ejecución pendiente se realiza
+en cuanto WordPress vuelve a procesar tareas programadas.
+
 ## Stack
 
 - WordPress 6.7 (PHP 8.3 + Apache)
