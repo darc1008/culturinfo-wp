@@ -40,6 +40,37 @@ ficha biográfica completa con sus redes al terminar el contenido. Las entradas
 anteriores que aún no tengan escritor seleccionado usan el usuario de WordPress
 asignado como respaldo.
 
+La portada y las páginas de sección muestran el mismo escritor editorial, de
+modo que la firma es consistente dentro y fuera de la noticia.
+
+Cada autor publicado dispone además de una página en `/autor/nombre/` con foto,
+biografía, redes y todas sus publicaciones. La búsqueda general muestra perfiles
+de escritores coincidentes además de noticias.
+
+## Comentarios y moderación
+
+Las noticias incluyen una conversación pública basada en comentarios nativos de
+WordPress. Cada comentario nuevo queda pendiente hasta que un editor lo aprueba;
+se exige nombre y correo, se limita el número de enlaces, se ofrece consentimiento
+para la cookie del comentarista y las conversaciones se cierran después de 60
+días. Los pingbacks y trackbacks están desactivados para reducir spam.
+
+Los editores pueden abrir o cerrar comentarios por noticia y moderarlos desde
+**Comentarios** en el panel. El correo del lector nunca se muestra públicamente.
+
+## Lectura de noticias en voz alta
+
+Cada noticia incluye un reproductor con controles para escuchar, pausar,
+continuar, detener y cambiar la velocidad. Utiliza la Web Speech API del
+navegador, prioriza una voz `es-DO` o cualquier voz en español disponible y
+divide automáticamente los artículos extensos para mejorar la estabilidad en
+móviles. No genera archivos de audio, no consume espacio del servidor y no
+requiere API, cuenta externa ni suscripción.
+
+La voz concreta depende del navegador y del sistema operativo del visitante. El
+script se carga únicamente en las noticias y excluye menús, anuncios,
+comentarios, pies de foto, contenido relacionado y biografías del autor.
+
 ## Estadísticas
 
 El plugin propio `Culturinfo — Estadísticas editoriales` añade un panel de
@@ -62,6 +93,14 @@ conocidos no se contabilizan. Independent Analytics se instala como complemento
 gratuito para análisis generales más detallados; ninguna parte requiere una
 suscripción.
 
+Los eventos públicos de lectura y publicidad se deduplican y limitan por ese
+identificador temporal para reducir recargas accidentales y manipulación básica
+de cifras sin convertir la dirección IP en un dato almacenado.
+
+Cuando ya existen datos suficientes, la portada muestra **Más leídas** con las
+cuatro noticias de mayor lectura de los últimos siete días. El cálculo se guarda
+en caché durante diez minutos para no recargar la base de datos.
+
 ## SEO y vistas previas al compartir
 
 Rank Math SEO se configura automáticamente en cada arranque, sin conectar una
@@ -79,10 +118,35 @@ configurar excepciones para secciones concretas. El proceso revisa los horarios
 cada 15 minutos con la zona horaria de WordPress, conserva un historial y ofrece
 una ejecución manual protegida por confirmación.
 
+Antes de entrar en la programación, un administrador o editor debe marcar la
+noticia como **Lista para publicación automática** desde el bloque **Revisión
+editorial**. Los borradores sin aprobación permanecen intactos, incluso durante
+una ejecución manual. Si un autor modifica después un borrador aprobado, la
+aprobación se retira y debe revisarse nuevamente.
+
 La automatización se instala desactivada para no publicar borradores existentes
 por sorpresa. Al guardar o cambiar un calendario comienza un ciclo nuevo; si el
 sitio no estaba disponible a la hora prevista, la ejecución pendiente se realiza
 en cuanto WordPress vuelve a procesar tareas programadas.
+
+La programación y la aprobación usan una capacidad propia concedida solamente a
+administradores y editores. El gestor de anuncios también utiliza capacidades
+separadas: autores, colaboradores y suscriptores no pueden crear ni modificar
+publicidad aunque puedan escribir noticias.
+
+## Contacto editorial
+
+El plugin propio `Culturinfo — Contacto editorial` convierte la página
+**Contacto** en un canal para mensajes generales, propuestas, correcciones,
+publicidad y colaboraciones. No admite adjuntos ni solicita cuentas al lector.
+Cada envío se guarda como mensaje privado en WordPress y se intenta notificar al
+correo administrador; por ello el equipo puede revisarlo aun cuando el servidor
+de correo no entregue la notificación.
+
+El formulario permite tres envíos por hora y visitante, incluye campo trampa,
+validación, consentimiento y redirección restringida al sitio. Los mensajes
+privados pasan a la papelera después de 90 días. Solo administradores y editores
+pueden acceder al menú **Mensajes**.
 
 ## Stack
 
@@ -90,7 +154,7 @@ en cuanto WordPress vuelve a procesar tareas programadas.
 - MariaDB
 - Tema: Culturinfo Editorial
 - WP-CLI para instalación y carga idempotente
-- Plugins: Akismet, Contact Form 7, Classic Editor y Rank Math SEO
+- Plugins: Akismet, Classic Editor, Rank Math SEO e Independent Analytics
 
 ## Despliegue en Coolify
 
@@ -102,6 +166,18 @@ en cuanto WordPress vuelve a procesar tareas programadas.
    - `/var/www/html` para WordPress.
 5. Copiar las variables de `.env.example` y definir contraseñas seguras.
 6. Desplegar. El contenedor instala WordPress, activa el tema, crea las secciones y configura el menú automáticamente.
+
+`MARIADB_PASSWORD` es obligatoria en todos los arranques y
+`WP_ADMIN_PASSWORD` lo es durante la primera instalación. La imagen no contiene
+contraseñas predeterminadas: deben generarse como valores aleatorios y guardarse
+en el gestor de variables secretas de Coolify, nunca en Git.
+
+En una instalación existente, antes de redesplegar se debe cargar en Coolify la
+contraseña que actualmente usa el usuario de la base de datos. Retirar el valor
+del código no rota por sí solo una credencial ya creada; la rotación de MariaDB y
+la actualización de `wp-config.php` deben realizarse juntas durante una ventana
+de mantenimiento y después invalidar las sesiones administrativas si hubo
+posible exposición.
 
 La aplicación está preparada para ejecutarse detrás del proxy HTTPS de
 Cloudflare/Coolify. En producción debe mantenerse `TRUST_PROXY_HEADERS=true`;

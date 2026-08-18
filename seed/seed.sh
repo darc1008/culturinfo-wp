@@ -4,8 +4,13 @@ set -e
 
 DB_HOST="${WORDPRESS_DB_HOST:-127.0.0.1}"
 DB_USER="${WORDPRESS_DB_USER:-culturinfo}"
-DB_PASS="${WORDPRESS_DB_PASSWORD:-Cult1nf0_M4r1adb_2026!}"
+DB_PASS="${WORDPRESS_DB_PASSWORD:-${MARIADB_PASSWORD:-}}"
 DB_NAME="${WORDPRESS_DB_NAME:-culturinfo}"
+
+if [ -z "$DB_PASS" ]; then
+  echo "ERROR: falta WORDPRESS_DB_PASSWORD o MARIADB_PASSWORD"
+  exit 1
+fi
 
 export WORDPRESS_DB_HOST="$DB_HOST"
 export WORDPRESS_DB_USER="$DB_USER"
@@ -37,6 +42,10 @@ for i in {1..30}; do
 done
 
 if ! wp core is-installed --allow-root >/dev/null 2>&1; then
+  if [ -z "${WP_ADMIN_PASSWORD:-}" ]; then
+    echo "ERROR: falta WP_ADMIN_PASSWORD para la instalación inicial"
+    exit 1
+  fi
   echo "==> Instalando WordPress"
   wp core install \
     --url="${WP_SITEURL:-https://culturinfo.statusloop.app}" \
@@ -65,6 +74,18 @@ wp option update time_format "H:i" --allow-root
 wp option update start_of_week "1" --allow-root
 wp option update posts_per_page "10" --allow-root
 wp option update default_comment_status "open" --allow-root
+wp option update default_ping_status "closed" --allow-root
+wp option update default_pingback_flag "0" --allow-root
+wp option update comment_moderation "1" --allow-root
+wp option update comment_registration "0" --allow-root
+wp option update require_name_email "1" --allow-root
+wp option update comment_max_links "1" --allow-root
+wp option update close_comments_for_old_posts "1" --allow-root
+wp option update close_comments_days_old "60" --allow-root
+wp option update show_comments_cookies_opt_in "1" --allow-root
+wp option update thread_comments "1" --allow-root
+wp option update page_comments "1" --allow-root
+wp option update comments_per_page "20" --allow-root
 wp option update show_on_front "posts" --allow-root
 
 echo "==> Enlaces permanentes"
@@ -106,8 +127,15 @@ else
   exit 1
 fi
 
+if wp plugin is-installed culturinfo-contact --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-contact --allow-root >/dev/null
+else
+  echo "ERROR: el contacto editorial de Culturinfo no fue copiado a WordPress"
+  exit 1
+fi
+
 echo "==> Plugins esenciales"
-for PLUGIN in akismet contact-form-7 classic-editor seo-by-rank-math independent-analytics; do
+for PLUGIN in akismet classic-editor seo-by-rank-math independent-analytics; do
   if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then
     wp plugin install "$PLUGIN" --activate --allow-root 2>&1 | tail -2
   else
@@ -149,21 +177,7 @@ for SLUG in "${SECTION_ORDER[@]}"; do
 done
 
 echo "==> Menú principal"
-if ! wp menu list --allow-root 2>/dev/null | grep -q "Menú Principal"; then
-  wp menu create "Menú Principal" --allow-root >/dev/null
-fi
-EXISTING_ITEMS=$(wp menu item list "Menú Principal" --field=db_id --format=ids --allow-root 2>/dev/null || true)
-for ITEM_ID in $EXISTING_ITEMS; do
-  wp menu item delete "$ITEM_ID" --allow-root >/dev/null 2>&1 || true
-done
-for SLUG in "${SECTION_ORDER[@]}"; do
-  wp menu item add-custom "Menú Principal" "${SECTIONS[$SLUG]}" "/category/$SLUG/" --allow-root >/dev/null
-done
-
-MENU_ID=$(wp menu list --fields=term_id,name --allow-root 2>/dev/null | awk -F'|' '/Menú Principal/ {gsub(/ /,"",$1); print $1; exit}')
-if [ -n "$MENU_ID" ]; then
-  CULTURINFO_MENU_ID="$MENU_ID" wp eval-file /seed/assign_menu.php --allow-root >/dev/null
-fi
+wp eval-file /seed/configure_menu.php --allow-root
 
 parse_frontmatter() {
   local FILE="$1"
@@ -227,16 +241,7 @@ for FILE in /seed/articles/*.md; do
 done
 
 echo "==> Página de contacto"
-CONTACT_ID=$(wp post list --post_type=page --name="contacto" --field=ID --allow-root 2>/dev/null | head -1)
-if [ -z "$CONTACT_ID" ]; then
-  wp post create \
-    --post_type=page \
-    --post_status=publish \
-    --post_title="Contacto" \
-    --post_name="contacto" \
-    --post_content="¿Quieres proponer una colaboración, enviar una historia o conversar con el equipo editorial? Escríbenos a través de los canales oficiales de Horizonte Cultural." \
-    --allow-root >/dev/null
-fi
+wp eval-file /seed/configure_contact.php --allow-root >/dev/null
 
 # Limpieza suave de contenido de ejemplo de WordPress; no elimina contenido editorial.
 SAMPLE_ID=$(wp post list --post_type=page --name="sample-page" --field=ID --allow-root 2>/dev/null | head -1)

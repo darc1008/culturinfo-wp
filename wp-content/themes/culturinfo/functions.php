@@ -31,9 +31,25 @@ function culturinfo_setup() {
 add_action('after_setup_theme', 'culturinfo_setup');
 
 function culturinfo_assets() {
-    $version = wp_get_theme()->get('Version');
-    wp_enqueue_style('culturinfo-style', get_stylesheet_uri(), array(), $version);
-    wp_enqueue_script('culturinfo-theme', get_template_directory_uri() . '/assets/js/theme.js', array(), $version, true);
+    $style_path = get_stylesheet_directory() . '/style.css';
+    $theme_script_path = get_template_directory() . '/assets/js/theme.js';
+    $style_version = file_exists($style_path) ? (string) filemtime($style_path) : wp_get_theme()->get('Version');
+    $theme_script_version = file_exists($theme_script_path) ? (string) filemtime($theme_script_path) : wp_get_theme()->get('Version');
+
+    wp_enqueue_style('culturinfo-style', get_stylesheet_uri(), array(), $style_version);
+    wp_enqueue_script('culturinfo-theme', get_template_directory_uri() . '/assets/js/theme.js', array(), $theme_script_version, true);
+
+    if (is_singular('post')) {
+        $reader_path = get_template_directory() . '/assets/js/article-reader.js';
+        $reader_version = file_exists($reader_path) ? (string) filemtime($reader_path) : wp_get_theme()->get('Version');
+        wp_enqueue_script(
+            'culturinfo-article-reader',
+            get_template_directory_uri() . '/assets/js/article-reader.js',
+            array(),
+            $reader_version,
+            true
+        );
+    }
 }
 add_action('wp_enqueue_scripts', 'culturinfo_assets');
 
@@ -122,9 +138,21 @@ add_filter('excerpt_more', 'culturinfo_excerpt_more');
 function culturinfo_posted_on() {
     printf(
         '<span>%s</span><span>%s</span>',
-        esc_html(get_the_author()),
+        esc_html(culturinfo_editorial_author_name(get_the_ID())),
         esc_html(get_the_date('j \d\e F, Y'))
     );
+}
+
+function culturinfo_editorial_author_name($post_id = null) {
+    $post_id = absint($post_id ?: get_the_ID());
+    if (function_exists('culturinfo_authors_get_article_author')) {
+        $author = culturinfo_authors_get_article_author($post_id);
+        if (!empty($author['name'])) {
+            return $author['name'];
+        }
+    }
+    $user_id = absint(get_post_field('post_author', $post_id));
+    return $user_id ? get_the_author_meta('display_name', $user_id) : get_bloginfo('name');
 }
 
 function culturinfo_reading_time($post_id = null) {
@@ -153,3 +181,25 @@ function culturinfo_pingback_header() {
     }
 }
 add_action('wp_head', 'culturinfo_pingback_header');
+
+/**
+ * Culturinfo no utiliza pingbacks ni trackbacks. Evita que aparezcan mezclados
+ * con la conversación editorial y reduce una vía habitual de spam.
+ */
+function culturinfo_disable_pings($open, $post_id) {
+    unset($post_id);
+    return false;
+}
+add_filter('pings_open', 'culturinfo_disable_pings', 10, 2);
+
+function culturinfo_disable_xmlrpc_pingback($methods) {
+    unset($methods['pingback.ping'], $methods['pingback.extensions.getPingbacks']);
+    return $methods;
+}
+add_filter('xmlrpc_methods', 'culturinfo_disable_xmlrpc_pingback');
+
+function culturinfo_comment_form_fields($fields) {
+    unset($fields['url']);
+    return $fields;
+}
+add_filter('comment_form_default_fields', 'culturinfo_comment_form_fields');

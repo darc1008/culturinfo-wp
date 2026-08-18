@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Culturinfo — Gestor de anuncios
  * Description: Permite crear anuncios y asignarlos a espacios de la portada, las secciones y las noticias.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Horizonte Cultural
  * Text Domain: culturinfo-ads
  */
@@ -10,6 +10,48 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+define('CULTURINFO_ADS_VERSION', '1.2.0');
+define('CULTURINFO_ADS_CAP_VERSION', '1');
+
+function culturinfo_ads_capabilities() {
+    return array(
+        'edit_culturinfo_ad',
+        'read_culturinfo_ad',
+        'delete_culturinfo_ad',
+        'edit_culturinfo_ads',
+        'edit_others_culturinfo_ads',
+        'publish_culturinfo_ads',
+        'read_private_culturinfo_ads',
+        'delete_culturinfo_ads',
+        'delete_private_culturinfo_ads',
+        'delete_published_culturinfo_ads',
+        'delete_others_culturinfo_ads',
+        'edit_private_culturinfo_ads',
+        'edit_published_culturinfo_ads',
+    );
+}
+
+function culturinfo_ads_grant_capabilities() {
+    foreach (array('administrator', 'editor') as $role_name) {
+        $role = get_role($role_name);
+        if (!$role) {
+            continue;
+        }
+        foreach (culturinfo_ads_capabilities() as $capability) {
+            $role->add_cap($capability);
+        }
+    }
+    update_option('culturinfo_ads_cap_version', CULTURINFO_ADS_CAP_VERSION, false);
+}
+
+function culturinfo_ads_maybe_upgrade_capabilities() {
+    if (get_option('culturinfo_ads_cap_version') !== CULTURINFO_ADS_CAP_VERSION) {
+        culturinfo_ads_grant_capabilities();
+    }
+}
+add_action('init', 'culturinfo_ads_maybe_upgrade_capabilities', 5);
+register_activation_hook(__FILE__, 'culturinfo_ads_grant_capabilities');
 
 function culturinfo_ads_slots() {
     return array(
@@ -53,7 +95,24 @@ function culturinfo_ads_register_post_type() {
         'menu_icon'          => 'dashicons-megaphone',
         'menu_position'      => 22,
         'supports'           => array('title', 'editor', 'thumbnail'),
-        'capability_type'    => 'post',
+        'capability_type'    => array('culturinfo_ad', 'culturinfo_ads'),
+        'map_meta_cap'       => true,
+        'capabilities'       => array(
+            'edit_post'              => 'edit_culturinfo_ad',
+            'read_post'              => 'read_culturinfo_ad',
+            'delete_post'            => 'delete_culturinfo_ad',
+            'edit_posts'             => 'edit_culturinfo_ads',
+            'edit_others_posts'      => 'edit_others_culturinfo_ads',
+            'publish_posts'          => 'publish_culturinfo_ads',
+            'read_private_posts'     => 'read_private_culturinfo_ads',
+            'delete_posts'           => 'delete_culturinfo_ads',
+            'delete_private_posts'   => 'delete_private_culturinfo_ads',
+            'delete_published_posts' => 'delete_published_culturinfo_ads',
+            'delete_others_posts'    => 'delete_others_culturinfo_ads',
+            'edit_private_posts'     => 'edit_private_culturinfo_ads',
+            'edit_published_posts'   => 'edit_published_culturinfo_ads',
+            'create_posts'           => 'edit_culturinfo_ads',
+        ),
         'has_archive'        => false,
         'rewrite'            => false,
         'exclude_from_search'=> true,
@@ -188,7 +247,7 @@ function culturinfo_ads_save_meta($post_id) {
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
         return;
     }
-    if (!current_user_can('edit_post', $post_id)) {
+    if (!current_user_can('edit_culturinfo_ad', $post_id)) {
         return;
     }
 
@@ -244,7 +303,7 @@ function culturinfo_ads_column_content($column, $post_id) {
 add_action('manage_culturinfo_ad_posts_custom_column', 'culturinfo_ads_column_content', 10, 2);
 
 function culturinfo_ads_enqueue_style() {
-    wp_enqueue_style('culturinfo-ads', plugin_dir_url(__FILE__) . 'assets/ads.css', array(), '1.0.0');
+    wp_enqueue_style('culturinfo-ads', plugin_dir_url(__FILE__) . 'assets/ads.css', array(), CULTURINFO_ADS_VERSION);
 }
 add_action('wp_enqueue_scripts', 'culturinfo_ads_enqueue_style');
 

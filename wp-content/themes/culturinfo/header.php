@@ -37,7 +37,7 @@
             </a>
             <div class="masthead-actions">
                 <button class="icon-button search-toggle" type="button" aria-expanded="false" aria-controls="site-search" aria-label="<?php esc_attr_e('Abrir búsqueda', 'culturinfo'); ?>">⌕</button>
-                <a class="subscribe-link" href="#boletin"><?php esc_html_e('Recibir novedades', 'culturinfo'); ?></a>
+                <a class="subscribe-link" href="<?php echo esc_url(home_url('/#participa')); ?>"><?php esc_html_e('Participa', 'culturinfo'); ?></a>
             </div>
         </div>
     </div>

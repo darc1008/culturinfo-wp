@@ -104,7 +104,7 @@
   window.setInterval(function () {
     if (document.visibilityState === 'visible' && !pageClosed) {
       pendingSeconds += 1;
-      if (pendingSeconds >= 15) flushTime();
+      if (pendingSeconds >= 30) flushTime();
     }
   }, 1000);
 

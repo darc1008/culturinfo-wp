@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CULTURINFO_STATS_VERSION', '1.1.0');
+define('CULTURINFO_STATS_VERSION', '1.2.0');
 
 function culturinfo_stats_tables() {
     global $wpdb;
@@ -213,6 +213,35 @@ function culturinfo_stats_track_pageview() {
 }
 add_action('template_redirect', 'culturinfo_stats_track_pageview', 20);
 
+function culturinfo_stats_popular_post_ids($days = 7, $limit = 4) {
+    global $wpdb;
+    $days = min(90, max(1, absint($days)));
+    $limit = min(12, max(1, absint($limit)));
+    $cache_key = 'culturinfo_popular_' . $days . '_' . $limit;
+    $cached = get_transient($cache_key);
+    if (is_array($cached)) {
+        return array_map('absint', $cached);
+    }
+
+    $table = culturinfo_stats_tables()['daily'];
+    $end = wp_date('Y-m-d');
+    $start = wp_date('Y-m-d', time() - (($days - 1) * DAY_IN_SECONDS));
+    $ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT object_id FROM {$table}
+         WHERE metric='pageview' AND object_type='post' AND dimension=''
+         AND stat_date BETWEEN %s AND %s
+         GROUP BY object_id ORDER BY SUM(total) DESC LIMIT %d",
+        $start,
+        $end,
+        $limit
+    ));
+    $ids = array_values(array_filter(array_map('absint', $ids), function ($post_id) {
+        return get_post_status($post_id) === 'publish';
+    }));
+    set_transient($cache_key, $ids, 10 * MINUTE_IN_SECONDS);
+    return $ids;
+}
+
 function culturinfo_stats_enqueue() {
     if (is_admin() || is_user_logged_in()) {
         return;
@@ -232,6 +261,29 @@ function culturinfo_stats_same_site_request() {
     $request_host = wp_parse_url($origin ?: $referer, PHP_URL_HOST);
     $site_host = wp_parse_url(home_url('/'), PHP_URL_HOST);
     return $request_host && $site_host && strtolower($request_host) === strtolower($site_host);
+}
+
+/**
+ * Limita telemetría pública por visitante sin conservar la dirección IP. No es
+ * autenticación: evita duplicados accidentales y reduce la inflación básica.
+ */
+function culturinfo_stats_event_guard($scope, $limit, $ttl) {
+    $fingerprint = culturinfo_stats_visitor_hash() . '|' . sanitize_key($scope);
+    $key = 'culturinfo_stats_guard_' . substr(hash('sha256', $fingerprint), 0, 40);
+    $count = absint(get_transient($key));
+    if ($count >= absint($limit)) {
+        return false;
+    }
+    set_transient($key, $count + 1, max(MINUTE_IN_SECONDS, absint($ttl)));
+    return true;
+}
+
+function culturinfo_stats_event_once($scope, $ttl) {
+    return culturinfo_stats_event_guard('once_' . $scope, 1, $ttl);
+}
+
+function culturinfo_stats_ignored_response() {
+    return rest_ensure_response(array('recorded' => false));
 }
 
 function culturinfo_stats_ad_event(WP_REST_Request $request) {
@@ -264,6 +316,16 @@ function culturinfo_stats_ad_event(WP_REST_Request $request) {
     } elseif ($context_type === 'article' && get_post_type($context_id) !== 'post') {
         return new WP_Error('invalid_context', 'La noticia no existe.', array('status' => 400));
     }
+
+    if (!culturinfo_stats_event_guard('ad-all', 80, HOUR_IN_SECONDS)) {
+        return culturinfo_stats_ignored_response();
+    }
+    if ($event === 'impression' && !culturinfo_stats_event_once('ad-impression-' . $ad_id . '-' . $slot . '-' . $context_type . '-' . $context_id, HOUR_IN_SECONDS)) {
+        return culturinfo_stats_ignored_response();
+    }
+    if ($event === 'click' && !culturinfo_stats_event_guard('ad-click-' . $ad_id, 5, HOUR_IN_SECONDS)) {
+        return culturinfo_stats_ignored_response();
+    }
     $metric = 'ad_' . $event;
     culturinfo_stats_increment($metric, 'ad', $ad_id);
     culturinfo_stats_increment($metric, 'ad', $ad_id, 'slot', $slot);
@@ -282,11 +344,17 @@ function culturinfo_stats_article_event(WP_REST_Request $request) {
     if (!$post_id || get_post_type($post_id) !== 'post' || get_post_status($post_id) !== 'publish') {
         return new WP_Error('invalid_article', 'La noticia no existe.', array('status' => 400));
     }
+    if (!culturinfo_stats_event_guard('article-all', 160, HOUR_IN_SECONDS)) {
+        return culturinfo_stats_ignored_response();
+    }
     if ($event === 'scroll' && in_array($value, array(25, 50, 75, 100), true)) {
+        if (!culturinfo_stats_event_once('article-scroll-' . $post_id . '-' . $value, DAY_IN_SECONDS)) {
+            return culturinfo_stats_ignored_response();
+        }
         culturinfo_stats_increment('article_scroll', 'post', $post_id, 'depth', (string) $value);
-    } elseif ($event === 'time' && $value >= 1 && $value <= 60) {
+    } elseif ($event === 'time' && $value >= 1 && $value <= 30) {
         culturinfo_stats_increment('article_time', 'post', $post_id, '', '', $value);
-        if ($request->get_param('session_start')) {
+        if ($request->get_param('session_start') && culturinfo_stats_event_once('article-session-' . $post_id, DAY_IN_SECONDS)) {
             culturinfo_stats_increment('article_session', 'post', $post_id);
         }
     } else {

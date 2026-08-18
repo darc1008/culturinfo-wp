@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Culturinfo — Autores editoriales
  * Description: Gestiona escritores independientes de los usuarios de WordPress y los asigna a las noticias.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Horizonte Cultural
  * Text Domain: culturinfo-authors
  */
@@ -10,6 +10,8 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+define('CULTURINFO_AUTHORS_VERSION', '1.1.0');
 
 function culturinfo_authors_social_fields() {
     return array(
@@ -40,8 +42,8 @@ function culturinfo_authors_register_post_type() {
             'remove_featured_image' => 'Quitar fotografía',
             'use_featured_image' => 'Usar como fotografía',
         ),
-        'public'              => false,
-        'publicly_queryable'  => false,
+        'public'              => true,
+        'publicly_queryable'  => true,
         'show_ui'             => true,
         'show_in_menu'        => true,
         'show_in_rest'        => true,
@@ -51,7 +53,8 @@ function culturinfo_authors_register_post_type() {
         'capability_type'     => 'page',
         'map_meta_cap'        => true,
         'has_archive'         => false,
-        'rewrite'             => false,
+        'query_var'           => true,
+        'rewrite'             => array('slug' => 'autor', 'with_front' => false),
         'exclude_from_search' => true,
     ));
 
@@ -66,6 +69,21 @@ function culturinfo_authors_register_post_type() {
     ));
 }
 add_action('init', 'culturinfo_authors_register_post_type');
+
+function culturinfo_authors_activate() {
+    culturinfo_authors_register_post_type();
+    flush_rewrite_rules(false);
+    update_option('culturinfo_authors_rewrite_version', CULTURINFO_AUTHORS_VERSION, false);
+}
+register_activation_hook(__FILE__, 'culturinfo_authors_activate');
+
+function culturinfo_authors_maybe_flush_rewrites() {
+    if (get_option('culturinfo_authors_rewrite_version') !== CULTURINFO_AUTHORS_VERSION) {
+        flush_rewrite_rules(false);
+        update_option('culturinfo_authors_rewrite_version', CULTURINFO_AUTHORS_VERSION, false);
+    }
+}
+add_action('init', 'culturinfo_authors_maybe_flush_rewrites', 20);
 
 function culturinfo_authors_add_meta_boxes() {
     add_meta_box(
@@ -198,6 +216,54 @@ function culturinfo_authors_initials($name) {
     return function_exists('mb_strtoupper') ? mb_strtoupper($initials) : strtoupper($initials);
 }
 
+function culturinfo_authors_get_writer_profile($writer_id) {
+    $writer_id = absint($writer_id);
+    $writer = $writer_id ? get_post($writer_id) : null;
+    if (!$writer || $writer->post_type !== 'culturinfo_writer') {
+        return null;
+    }
+
+    $socials = array();
+    foreach (culturinfo_authors_social_fields() as $key => $field) {
+        $url = get_post_meta($writer_id, '_culturinfo_writer_' . $key, true);
+        if ($url) {
+            $socials[] = array(
+                'label' => $field['label'],
+                'short' => $field['short'],
+                'url'   => $url,
+            );
+        }
+    }
+
+    return array(
+        'id'         => $writer_id,
+        'name'       => get_the_title($writer_id),
+        'url'        => $writer->post_status === 'publish' ? get_permalink($writer_id) : '#autor-' . $writer_id,
+        'anchor_id'  => 'autor-' . $writer_id,
+        'photo_id'   => get_post_thumbnail_id($writer_id),
+        'initials'   => culturinfo_authors_initials(get_the_title($writer_id)),
+        'bio'        => $writer->post_content,
+        'socials'    => $socials,
+        'status'     => $writer->post_status,
+    );
+}
+
+function culturinfo_authors_search($search, $limit = 6) {
+    $search = trim(sanitize_text_field((string) $search));
+    if ($search === '') {
+        return array();
+    }
+    $writer_ids = get_posts(array(
+        'post_type'      => 'culturinfo_writer',
+        'post_status'    => 'publish',
+        'posts_per_page' => min(12, max(1, absint($limit))),
+        'fields'         => 'ids',
+        's'              => $search,
+        'orderby'        => 'relevance',
+    ));
+    return array_values(array_filter(array_map('culturinfo_authors_get_writer_profile', $writer_ids)));
+}
+
 /**
  * Devuelve el perfil editorial elegido para una noticia, con fallback al usuario.
  */
@@ -206,31 +272,12 @@ function culturinfo_authors_get_article_author($article_id = 0) {
     $writer_id = absint(get_post_meta($article_id, '_culturinfo_writer_id', true));
 
     if ($writer_id > 0 && get_post_type($writer_id) === 'culturinfo_writer') {
-        $writer = get_post($writer_id);
-        $socials = array();
-        foreach (culturinfo_authors_social_fields() as $key => $field) {
-            $url = get_post_meta($writer_id, '_culturinfo_writer_' . $key, true);
-            if ($url) {
-                $socials[] = array(
-                    'label' => $field['label'],
-                    'short' => $field['short'],
-                    'url'   => $url,
-                );
-            }
+        $profile = culturinfo_authors_get_writer_profile($writer_id);
+        if ($profile) {
+            $profile['source'] = 'editorial';
+            $profile['avatar_url'] = '';
+            return $profile;
         }
-
-        return array(
-            'id'         => $writer_id,
-            'source'     => 'editorial',
-            'name'       => get_the_title($writer_id),
-            'url'        => '#autor-' . $writer_id,
-            'anchor_id'  => 'autor-' . $writer_id,
-            'photo_id'   => get_post_thumbnail_id($writer_id),
-            'avatar_url' => '',
-            'initials'   => culturinfo_authors_initials(get_the_title($writer_id)),
-            'bio'        => $writer ? $writer->post_content : '',
-            'socials'    => $socials,
-        );
     }
 
     $user_id = absint(get_post_field('post_author', $article_id));

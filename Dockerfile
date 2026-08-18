@@ -29,13 +29,16 @@ COPY supervisord.conf /etc/supervisor/conf.d/culturinfo.conf
 COPY seed/seed.sh /usr/local/bin/seed.sh
 COPY seed/articles /seed/articles
 COPY seed/assign_menu.php /seed/assign_menu.php
+COPY seed/configure_menu.php /seed/configure_menu.php
 COPY seed/configure_proxy.php /seed/configure_proxy.php
 COPY seed/configure_rank_math.php /seed/configure_rank_math.php
+COPY seed/configure_contact.php /seed/configure_contact.php
 COPY wp-content/themes/culturinfo /opt/culturinfo/theme
 COPY wp-content/plugins/culturinfo-ads /opt/culturinfo/plugins/culturinfo-ads
 COPY wp-content/plugins/culturinfo-authors /opt/culturinfo/plugins/culturinfo-authors
 COPY wp-content/plugins/culturinfo-stats /opt/culturinfo/plugins/culturinfo-stats
 COPY wp-content/plugins/culturinfo-publishing /opt/culturinfo/plugins/culturinfo-publishing
+COPY wp-content/plugins/culturinfo-contact /opt/culturinfo/plugins/culturinfo-contact
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh
 
@@ -49,8 +52,6 @@ ENV APACHE_RUN_USER=www-data
 ENV APACHE_RUN_GROUP=www-data
 ENV MARIADB_DATABASE=culturinfo
 ENV MARIADB_USER=culturinfo
-ENV MARIADB_PASSWORD=Cult1nf0_M4r1adb_2026!
-ENV MARIADB_ROOT_PASSWORD=Cult1nf0_R00t_2026!
 
 EXPOSE 80
 

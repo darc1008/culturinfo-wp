@@ -4,6 +4,30 @@ set -e
 
 echo "[entrypoint] Iniciando culturinfo..."
 
+MARIADB_DATABASE="${MARIADB_DATABASE:-culturinfo}"
+MARIADB_USER="${MARIADB_USER:-culturinfo}"
+if [ -z "${MARIADB_PASSWORD:-}" ]; then
+  echo "ERROR: falta la variable obligatoria MARIADB_PASSWORD"
+  exit 1
+fi
+if [[ ! "$MARIADB_DATABASE" =~ ^[A-Za-z0-9_]+$ ]]; then
+  echo "ERROR: MARIADB_DATABASE solo puede contener letras, números y guion bajo"
+  exit 1
+fi
+if [[ ! "$MARIADB_USER" =~ ^[A-Za-z0-9_]+$ ]]; then
+  echo "ERROR: MARIADB_USER solo puede contener letras, números y guion bajo"
+  exit 1
+fi
+
+sql_string() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\'/\'\'}"
+  printf '%s' "$value"
+}
+
+MARIADB_PASSWORD_SQL="$(sql_string "$MARIADB_PASSWORD")"
+
 # Inicializar MariaDB si la base está vacía
 if [ ! -d /var/lib/mysql/mysql ]; then
   echo "[entrypoint] Inicializando MariaDB..."
@@ -44,6 +68,11 @@ mkdir -p /var/www/html/wp-content/plugins/culturinfo-publishing
 cp -a /opt/culturinfo/plugins/culturinfo-publishing/. /var/www/html/wp-content/plugins/culturinfo-publishing/
 chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-publishing
 
+echo "[entrypoint] Sincronizando contacto editorial..."
+mkdir -p /var/www/html/wp-content/plugins/culturinfo-contact
+cp -a /opt/culturinfo/plugins/culturinfo-contact/. /var/www/html/wp-content/plugins/culturinfo-contact/
+chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-contact
+
 # Asegurar permisos
 chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
 
@@ -63,11 +92,11 @@ done
 
 # Crear DB y usuario si no existen
 mysql -uroot <<EOSQL
-CREATE DATABASE IF NOT EXISTS \`${MARIADB_DATABASE:-culturinfo}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '${MARIADB_USER:-culturinfo}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD}';
-CREATE USER IF NOT EXISTS '${MARIADB_USER:-culturinfo}'@'127.0.0.1' IDENTIFIED BY '${MARIADB_PASSWORD}';
-GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE:-culturinfo}\`.* TO '${MARIADB_USER:-culturinfo}'@'localhost';
-GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE:-culturinfo}\`.* TO '${MARIADB_USER:-culturinfo}'@'127.0.0.1';
+CREATE DATABASE IF NOT EXISTS \`${MARIADB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'localhost' IDENTIFIED BY '${MARIADB_PASSWORD_SQL}';
+CREATE USER IF NOT EXISTS '${MARIADB_USER}'@'127.0.0.1' IDENTIFIED BY '${MARIADB_PASSWORD_SQL}';
+GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'localhost';
+GRANT ALL PRIVILEGES ON \`${MARIADB_DATABASE}\`.* TO '${MARIADB_USER}'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOSQL
 echo "[entrypoint] MariaDB ready"
@@ -78,8 +107,8 @@ if [ ! -f wp-config.php ]; then
   echo "[entrypoint] Creando wp-config.php..."
   wp config create \
     --dbhost=127.0.0.1 \
-    --dbname="${MARIADB_DATABASE:-culturinfo}" \
-    --dbuser="${MARIADB_USER:-culturinfo}" \
+    --dbname="${MARIADB_DATABASE}" \
+    --dbuser="${MARIADB_USER}" \
     --dbpass="${MARIADB_PASSWORD}" \
     --dbcharset=utf8mb4 \
     --dbcollate=utf8mb4_unicode_ci \

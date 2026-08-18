@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Culturinfo — Programación editorial
  * Description: Publica semanalmente los borradores en un día predeterminado, con horarios distintos por sección.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Horizonte Cultural
  * Text Domain: culturinfo-publishing
  */
@@ -11,15 +11,34 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CULTURINFO_PUBLISHING_VERSION', '1.0.0');
+define('CULTURINFO_PUBLISHING_VERSION', '1.1.0');
 define('CULTURINFO_PUBLISHING_OPTION', 'culturinfo_publishing_settings');
 define('CULTURINFO_PUBLISHING_RUNS_OPTION', 'culturinfo_publishing_last_runs');
 define('CULTURINFO_PUBLISHING_LOG_OPTION', 'culturinfo_publishing_log');
 define('CULTURINFO_PUBLISHING_CRON', 'culturinfo_publishing_tick');
+define('CULTURINFO_PUBLISHING_APPROVAL_META', '_culturinfo_ready_to_publish');
+define('CULTURINFO_PUBLISHING_CAP_VERSION', '1');
 
 function culturinfo_publishing_capability() {
-    return apply_filters('culturinfo_publishing_capability', 'edit_others_posts');
+    return apply_filters('culturinfo_publishing_capability', 'manage_culturinfo_publishing');
 }
+
+function culturinfo_publishing_grant_capability() {
+    foreach (array('administrator', 'editor') as $role_name) {
+        $role = get_role($role_name);
+        if ($role && !$role->has_cap(culturinfo_publishing_capability())) {
+            $role->add_cap(culturinfo_publishing_capability());
+        }
+    }
+    update_option('culturinfo_publishing_cap_version', CULTURINFO_PUBLISHING_CAP_VERSION, false);
+}
+
+function culturinfo_publishing_maybe_upgrade_capability() {
+    if (get_option('culturinfo_publishing_cap_version') !== CULTURINFO_PUBLISHING_CAP_VERSION) {
+        culturinfo_publishing_grant_capability();
+    }
+}
+add_action('init', 'culturinfo_publishing_maybe_upgrade_capability', 5);
 
 function culturinfo_publishing_days() {
     return array(
@@ -79,6 +98,7 @@ function culturinfo_publishing_schedule_cron() {
 add_action('init', 'culturinfo_publishing_schedule_cron');
 
 function culturinfo_publishing_activate() {
+    culturinfo_publishing_grant_capability();
     culturinfo_publishing_schedule_cron();
 }
 register_activation_hook(__FILE__, 'culturinfo_publishing_activate');
@@ -87,6 +107,83 @@ function culturinfo_publishing_deactivate() {
     wp_clear_scheduled_hook(CULTURINFO_PUBLISHING_CRON);
 }
 register_deactivation_hook(__FILE__, 'culturinfo_publishing_deactivate');
+
+function culturinfo_publishing_register_approval_meta() {
+    register_post_meta('post', CULTURINFO_PUBLISHING_APPROVAL_META, array(
+        'type'              => 'boolean',
+        'single'            => true,
+        'show_in_rest'      => false,
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'auth_callback'     => function () {
+            return current_user_can(culturinfo_publishing_capability());
+        },
+    ));
+}
+add_action('init', 'culturinfo_publishing_register_approval_meta');
+
+function culturinfo_publishing_add_approval_box() {
+    if (!current_user_can(culturinfo_publishing_capability())) {
+        return;
+    }
+    add_meta_box(
+        'culturinfo-publishing-approval',
+        'Revisión editorial',
+        'culturinfo_publishing_approval_box',
+        'post',
+        'side',
+        'high'
+    );
+}
+add_action('add_meta_boxes_post', 'culturinfo_publishing_add_approval_box');
+
+function culturinfo_publishing_approval_box($post) {
+    wp_nonce_field('culturinfo_publishing_approval', 'culturinfo_publishing_approval_nonce');
+    $approved = '1' === get_post_meta($post->ID, CULTURINFO_PUBLISHING_APPROVAL_META, true);
+    ?>
+    <p><label><input type="checkbox" name="culturinfo_ready_to_publish" value="1" <?php checked($approved); ?>> <strong>Lista para publicación automática</strong></label></p>
+    <p class="description">Solo las noticias aprobadas se publicarán en el próximo horario. Si un autor modifica después el borrador, deberá aprobarse nuevamente.</p>
+    <?php
+}
+
+function culturinfo_publishing_save_approval($post_id, $post) {
+    if (!$post || $post->post_type !== 'post' || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) || wp_is_post_revision($post_id)) {
+        return;
+    }
+
+    $can_approve = current_user_can(culturinfo_publishing_capability()) && current_user_can('edit_post', $post_id);
+    $valid_nonce = isset($_POST['culturinfo_publishing_approval_nonce'])
+        && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['culturinfo_publishing_approval_nonce'])), 'culturinfo_publishing_approval');
+
+    if ($can_approve && $valid_nonce) {
+        if (!empty($_POST['culturinfo_ready_to_publish'])) {
+            update_post_meta($post_id, CULTURINFO_PUBLISHING_APPROVAL_META, '1');
+        } else {
+            delete_post_meta($post_id, CULTURINFO_PUBLISHING_APPROVAL_META);
+        }
+        return;
+    }
+
+    if ($post->post_status === 'draft' && is_user_logged_in() && !$can_approve) {
+        delete_post_meta($post_id, CULTURINFO_PUBLISHING_APPROVAL_META);
+    }
+}
+add_action('save_post_post', 'culturinfo_publishing_save_approval', 20, 2);
+
+function culturinfo_publishing_post_columns($columns) {
+    $columns['culturinfo_ready'] = 'Revisión';
+    return $columns;
+}
+add_filter('manage_post_posts_columns', 'culturinfo_publishing_post_columns');
+
+function culturinfo_publishing_post_column($column, $post_id) {
+    if ($column !== 'culturinfo_ready') {
+        return;
+    }
+    echo '1' === get_post_meta($post_id, CULTURINFO_PUBLISHING_APPROVAL_META, true)
+        ? '<span style="color:#087a36;font-weight:700">Lista</span>'
+        : '<span style="color:#8a4b00">Pendiente</span>';
+}
+add_action('manage_post_posts_custom_column', 'culturinfo_publishing_post_column', 10, 2);
 
 function culturinfo_publishing_schedule_definitions($settings = null) {
     $settings = is_array($settings) ? $settings : culturinfo_publishing_settings();
@@ -167,6 +264,8 @@ function culturinfo_publishing_draft_groups($settings, $definitions) {
         'ignore_sticky_posts'    => true,
         'update_post_meta_cache' => false,
         'update_post_term_cache' => true,
+        'meta_key'               => CULTURINFO_PUBLISHING_APPROVAL_META,
+        'meta_value'             => '1',
     ));
     foreach ($draft_ids as $post_id) {
         $key = culturinfo_publishing_post_schedule_key($post_id, $settings);
@@ -293,6 +392,8 @@ function culturinfo_publishing_admin_page() {
     $definitions = culturinfo_publishing_schedule_definitions($settings);
     $groups = culturinfo_publishing_draft_groups($settings, $definitions);
     $draft_count = array_sum(array_map('count', $groups));
+    $all_draft_count = (int) wp_count_posts('post')->draft;
+    $waiting_review = max(0, $all_draft_count - $draft_count);
     $category_draft_counts = array();
     foreach ($groups as $post_ids) {
         foreach ($post_ids as $post_id) {
@@ -308,13 +409,14 @@ function culturinfo_publishing_admin_page() {
     ?>
     <div class="wrap culturinfo-publishing-wrap">
         <h1>Programación editorial</h1>
-        <p>Publica en bloque las noticias guardadas como <strong>borrador</strong>. La fecha pública de cada noticia será el momento real en que el proceso la publique.</p>
+        <p>Publica en bloque únicamente las noticias guardadas como <strong>borrador</strong> y marcadas como <strong>Lista para publicación automática</strong>. La fecha pública será el momento real en que el proceso las publique.</p>
         <?php if (isset($_GET['saved'])) : ?><div class="notice notice-success is-dismissible"><p>La programación fue guardada. Los cambios aplicarán desde la próxima fecha configurada.</p></div><?php endif; ?>
         <?php if (isset($_GET['run'])) : ?><div class="notice notice-success is-dismissible"><p>Proceso manual terminado: <strong><?php echo esc_html(absint($_GET['published'] ?? 0)); ?></strong> noticias publicadas.</p></div><?php endif; ?>
 
         <div class="culturinfo-publishing-summary">
             <div><span>Estado</span><strong class="<?php echo empty($settings['enabled']) ? 'is-off' : 'is-on'; ?>"><?php echo empty($settings['enabled']) ? 'Desactivado' : 'Activo'; ?></strong></div>
-            <div><span>Borradores pendientes</span><strong><?php echo esc_html(number_format_i18n($draft_count)); ?></strong></div>
+            <div><span>Listas para publicar</span><strong><?php echo esc_html(number_format_i18n($draft_count)); ?></strong></div>
+            <div><span>Esperando revisión</span><strong><?php echo esc_html(number_format_i18n($waiting_review)); ?></strong></div>
             <div><span>Zona horaria</span><strong><?php echo esc_html(wp_timezone_string()); ?></strong></div>
             <div><span>Frecuencia de revisión</span><strong>Cada 15 minutos</strong></div>
         </div>
@@ -357,11 +459,11 @@ function culturinfo_publishing_admin_page() {
 
         <section class="culturinfo-publishing-panel culturinfo-publishing-manual">
             <h2>Publicación manual</h2>
-            <p>Publica inmediatamente todos los borradores, sin esperar el día configurado.</p>
+            <p>Publica inmediatamente todos los borradores aprobados, sin esperar el día configurado. Los borradores pendientes de revisión no se modificarán.</p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm('¿Publicar ahora todos los borradores? Esta acción cambiará su estado a Publicado.');">
                 <input type="hidden" name="action" value="culturinfo_publishing_run_now">
                 <?php wp_nonce_field('culturinfo_publishing_run_now'); ?>
-                <?php submit_button('Publicar todos los borradores ahora', 'secondary', 'submit', false); ?>
+                <?php submit_button('Publicar borradores aprobados ahora', 'secondary', 'submit', false); ?>
             </form>
         </section>
 
