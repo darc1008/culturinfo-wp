@@ -8,16 +8,18 @@
   const toggleLabel = reader.querySelector('[data-reader-toggle-label]');
   const toggleIcon = reader.querySelector('.article-reader-play');
   const stopButton = reader.querySelector('[data-reader-stop]');
+  const voiceSelect = reader.querySelector('[data-reader-voice]');
   const rateSelect = reader.querySelector('[data-reader-rate]');
   const progress = reader.querySelector('[data-reader-progress]');
   const status = reader.querySelector('[data-reader-status]');
   const synthesis = window.speechSynthesis;
   const Utterance = window.SpeechSynthesisUtterance;
 
-  if (!toggleButton || !toggleLabel || !stopButton || !rateSelect || !progress || !status || !synthesis || !Utterance) {
+  if (!toggleButton || !toggleLabel || !stopButton || !voiceSelect || !rateSelect || !progress || !status || !synthesis || !Utterance) {
     reader.classList.add('is-unavailable');
     if (status) status.textContent = 'La lectura en voz alta no está disponible en este navegador.';
     if (toggleButton) toggleButton.disabled = true;
+    if (voiceSelect) voiceSelect.disabled = true;
     if (rateSelect) rateSelect.disabled = true;
     return;
   }
@@ -32,6 +34,8 @@
   let currentIndex = 0;
   let state = 'idle';
   let selectedVoice = null;
+  let spanishVoices = [];
+  let voicesSignature = '';
 
   function cleanText(value) {
     return String(value || '')
@@ -106,13 +110,95 @@
     return result;
   }
 
-  function chooseVoice() {
-    const voices = synthesis.getVoices();
-    selectedVoice = voices.find(function (voice) {
-      return voice.lang.toLowerCase() === 'es-do';
-    }) || voices.find(function (voice) {
-      return voice.lang.toLowerCase().startsWith('es');
-    }) || null;
+  function normalizedLanguage(voice) {
+    return String(voice.lang || '').toLowerCase().replace('_', '-');
+  }
+
+  function voicePriority(voice) {
+    const language = normalizedLanguage(voice);
+    let score = 0;
+    if (language === 'es-do') score = 100;
+    else if (language === 'es-419') score = 95;
+    else if (language === 'es-us') score = 90;
+    else if (language === 'es-mx') score = 85;
+    else if (language.startsWith('es-')) score = 70;
+    else if (language === 'es') score = 60;
+
+    const name = String(voice.name || '').toLowerCase();
+    if (name.includes('natural')) score += 8;
+    if (name.includes('google')) score += 5;
+    return score;
+  }
+
+  function refreshVoices() {
+    const availableVoices = synthesis.getVoices();
+    const currentValue = voiceSelect.value;
+    spanishVoices = availableVoices
+      .filter(function (voice) {
+        return normalizedLanguage(voice) === 'es' || normalizedLanguage(voice).startsWith('es-');
+      })
+      .sort(function (first, second) {
+        return voicePriority(second) - voicePriority(first) || first.name.localeCompare(second.name, 'es');
+      });
+
+    const nextSignature = spanishVoices.map(function (voice) {
+      return (voice.voiceURI || voice.name) + '|' + voice.lang;
+    }).join('||');
+
+    if (nextSignature !== voicesSignature) {
+      voicesSignature = nextSignature;
+      voiceSelect.textContent = '';
+      spanishVoices.forEach(function (voice, index) {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = voice.name + ' (' + voice.lang + ')';
+        voiceSelect.appendChild(option);
+      });
+    }
+
+    if (spanishVoices.length) {
+      const validValue = Number.isInteger(Number(currentValue)) && spanishVoices[Number(currentValue)];
+      voiceSelect.value = validValue ? currentValue : '0';
+      selectedVoice = spanishVoices[Number(voiceSelect.value)] || spanishVoices[0];
+      voiceSelect.disabled = false;
+      toggleButton.disabled = false;
+      if (state === 'idle' && status.textContent.indexOf('No hay una voz española') === 0) {
+        status.textContent = 'Voz española disponible. Listo para escuchar.';
+      }
+      return true;
+    }
+
+    selectedVoice = null;
+    if (!voiceSelect.options.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'Buscando voz española…';
+      voiceSelect.appendChild(option);
+    }
+    voiceSelect.disabled = true;
+    return availableVoices.length === 0;
+  }
+
+  function waitForSpanishVoice() {
+    return new Promise(function (resolve) {
+      let attempt = 0;
+      const delays = [0, 100, 300, 700, 1200];
+
+      function check() {
+        const usable = refreshVoices();
+        if (selectedVoice || (usable && attempt === delays.length - 1)) {
+          resolve(Boolean(selectedVoice));
+          return;
+        }
+        attempt += 1;
+        if (attempt >= delays.length) {
+          resolve(false);
+          return;
+        }
+        window.setTimeout(check, delays[attempt]);
+      }
+      check();
+    });
   }
 
   function setState(nextState, message) {
@@ -153,7 +239,7 @@
     }
 
     const utterance = new Utterance(chunks[currentIndex]);
-    utterance.lang = selectedVoice ? selectedVoice.lang : 'es-DO';
+    utterance.lang = selectedVoice ? selectedVoice.lang : 'es-ES';
     utterance.rate = Number(rateSelect.value) || 1;
     if (selectedVoice) utterance.voice = selectedVoice;
 
@@ -177,7 +263,7 @@
     synthesis.speak(utterance);
   }
 
-  function startReading() {
+  async function startReading() {
     if (!chunks.length) chunks = buildChunks(articleText());
     if (!chunks.length) {
       setState('idle', 'Esta publicación no contiene texto disponible para leer.');
@@ -198,6 +284,16 @@
     if (state === 'finished' || currentIndex >= chunks.length) {
       currentIndex = 0;
       updateProgress();
+    }
+
+    if (!selectedVoice) {
+      status.textContent = 'Buscando una voz española en el dispositivo…';
+      const hasSpanishVoice = await waitForSpanishVoice();
+      if (!hasSpanishVoice) {
+        setState('idle', 'No hay una voz española instalada. Actívala en los ajustes de idioma del dispositivo.');
+        toggleButton.disabled = true;
+        return;
+      }
     }
 
     runToken += 1;
@@ -227,9 +323,22 @@
       speakCurrent(runToken);
     }
   });
+  voiceSelect.addEventListener('change', function () {
+    selectedVoice = spanishVoices[Number(voiceSelect.value)] || spanishVoices[0] || null;
+    if (state !== 'speaking' && state !== 'paused') return;
+    runToken += 1;
+    synthesis.cancel();
+    if (state === 'paused') {
+      setState('idle', 'Voz actualizada. Pulsa Escuchar para continuar.');
+    } else {
+      speakCurrent(runToken);
+    }
+  });
 
-  chooseVoice();
-  if ('onvoiceschanged' in synthesis) synthesis.addEventListener('voiceschanged', chooseVoice);
+  refreshVoices();
+  window.setTimeout(refreshVoices, 250);
+  window.setTimeout(refreshVoices, 900);
+  if ('onvoiceschanged' in synthesis) synthesis.addEventListener('voiceschanged', refreshVoices);
   window.addEventListener('pagehide', function () {
     runToken += 1;
     synthesis.cancel();

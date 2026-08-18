@@ -67,6 +67,11 @@ divide automáticamente los artículos extensos para mejorar la estabilidad en
 móviles. No genera archivos de audio, no consume espacio del servidor y no
 requiere API, cuenta externa ni suscripción.
 
+El selector muestra exclusivamente las voces españolas ofrecidas por el
+dispositivo y prioriza español dominicano y latino. Si no existe ninguna, el
+lector muestra instrucciones para activarla y no utiliza una voz inglesa como
+reemplazo.
+
 La voz concreta depende del navegador y del sistema operativo del visitante. El
 script se carga únicamente en las noticias y excluye menús, anuncios,
 comentarios, pies de foto, contenido relacionado y biografías del autor.

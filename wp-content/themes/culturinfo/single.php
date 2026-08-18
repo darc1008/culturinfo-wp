@@ -81,6 +81,12 @@ get_header();
                     <span aria-hidden="true">■</span>
                     <?php esc_html_e('Detener', 'culturinfo'); ?>
                 </button>
+                <label class="article-reader-voice">
+                    <span><?php esc_html_e('Voz', 'culturinfo'); ?></span>
+                    <select data-reader-voice aria-label="<?php esc_attr_e('Voz española', 'culturinfo'); ?>">
+                        <option value=""><?php esc_html_e('Español automático', 'culturinfo'); ?></option>
+                    </select>
+                </label>
                 <label class="article-reader-speed">
                     <span><?php esc_html_e('Velocidad', 'culturinfo'); ?></span>
                     <select data-reader-rate>

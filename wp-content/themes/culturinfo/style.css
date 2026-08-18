@@ -269,8 +269,8 @@ button { cursor: pointer; }
 .article-reader .article-reader-toggle { border-color: var(--navy); background: var(--navy); color: var(--white); }
 .article-reader .article-reader-toggle:hover { border-color: var(--orange); background: var(--orange); }
 .article-reader .article-reader-stop:disabled { opacity: .45; cursor: not-allowed; }
-.article-reader-speed { display: grid; gap: 4px; color: var(--muted); font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
-.article-reader-speed select { min-width: 76px; padding: 0 9px; }
+.article-reader-speed, .article-reader-voice { display: grid; gap: 4px; color: var(--muted); font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.article-reader-speed select, .article-reader-voice select { min-width: 76px; max-width: 190px; padding: 0 9px; text-transform: none; }
 .article-reader-progress { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(110px, 1fr) auto; align-items: center; gap: 12px; }
 .article-reader-progress progress { width: 100%; height: 5px; overflow: hidden; border: 0; border-radius: 99px; background: #d8d2c7; }
 .article-reader-progress progress::-webkit-progress-bar { background: #d8d2c7; }
@@ -472,7 +472,9 @@ button { cursor: pointer; }
   .article-reader-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; }
   .article-reader-toggle { min-width: 0; }
   .article-reader-stop { grid-column: 2; }
-  .article-reader-speed { grid-column: 1 / -1; grid-row: 2; }
+  .article-reader-voice { grid-column: 1 / -1; grid-row: 2; }
+  .article-reader-speed { grid-column: 1 / -1; grid-row: 3; }
+  .article-reader-speed select, .article-reader-voice select { width: 100%; max-width: none; }
   .article-reader-progress { grid-template-columns: 1fr; gap: 7px; }
   .article-hero-image { width: 100%; margin-bottom: 38px; }
   .entry-content { font-size: 1.06rem; }
