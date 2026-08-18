@@ -104,6 +104,25 @@ function culturinfo_logo_url() {
     return get_template_directory_uri() . '/assets/images/culturinfo-logo.jpg';
 }
 
+function culturinfo_fallback_site_icon() {
+    if (function_exists('has_site_icon') && has_site_icon()) {
+        return;
+    }
+
+    $icon_path = get_template_directory() . '/assets/images/culturinfo-site-icon.png';
+    $icon_url = get_template_directory_uri() . '/assets/images/culturinfo-site-icon.png';
+    if (!file_exists($icon_path)) {
+        return;
+    }
+
+    $icon_url = add_query_arg('ver', (string) filemtime($icon_path), $icon_url);
+    printf("<link rel=\"icon\" href=\"%s\" type=\"image/png\">\n", esc_url($icon_url));
+    printf("<link rel=\"apple-touch-icon\" href=\"%s\">\n", esc_url($icon_url));
+}
+add_action('wp_head', 'culturinfo_fallback_site_icon', 5);
+add_action('admin_head', 'culturinfo_fallback_site_icon', 5);
+add_action('login_head', 'culturinfo_fallback_site_icon', 5);
+
 function culturinfo_primary_menu_fallback() {
     echo '<ul id="primary-menu" class="primary-menu">';
     foreach (culturinfo_sections() as $slug => $section) {
