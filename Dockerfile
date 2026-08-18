@@ -1,15 +1,29 @@
 FROM wordpress:6.7-php8.3-apache
 
-# Install MariaDB server + supervisord + wp-cli
+# Install MariaDB, audio runtime and wp-cli
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mariadb-server \
     supervisor \
     curl \
     ca-certificates \
+    python3 \
+    python3-venv \
+    lame \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
     && curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
     && chmod +x wp-cli.phar \
     && mv wp-cli.phar /usr/local/bin/wp
+
+# Local neural text-to-speech. The engine and voice are pinned so production
+# does not change pronunciation unexpectedly between deployments.
+RUN python3 -m venv /opt/culturinfo/piper \
+    && /opt/culturinfo/piper/bin/pip install --no-cache-dir piper-tts==1.7.0 \
+    && mkdir -p /opt/culturinfo/voices \
+    && curl -fL 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/es/es_MX/claude/high/es_MX-claude-high.onnx' -o /opt/culturinfo/voices/es_MX-claude-high.onnx \
+    && curl -fL 'https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/es/es_MX/claude/high/es_MX-claude-high.onnx.json' -o /opt/culturinfo/voices/es_MX-claude-high.onnx.json \
+    && curl -fsSL 'https://www.apache.org/licenses/LICENSE-2.0.txt' -o /opt/culturinfo/voices/LICENSE-APACHE-2.0.txt
+COPY licenses/es_MX-claude-high.MODEL_CARD.md /opt/culturinfo/voices/MODEL_CARD.md
 
 # PHP limits
 RUN echo 'memory_limit = 256M' > /usr/local/etc/php/conf.d/zz-wp-limits.ini \
@@ -39,8 +53,10 @@ COPY wp-content/plugins/culturinfo-authors /opt/culturinfo/plugins/culturinfo-au
 COPY wp-content/plugins/culturinfo-stats /opt/culturinfo/plugins/culturinfo-stats
 COPY wp-content/plugins/culturinfo-publishing /opt/culturinfo/plugins/culturinfo-publishing
 COPY wp-content/plugins/culturinfo-contact /opt/culturinfo/plugins/culturinfo-contact
+COPY wp-content/plugins/culturinfo-audio /opt/culturinfo/plugins/culturinfo-audio
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh
+COPY audio-worker.sh /usr/local/bin/audio-worker.sh
+RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh /usr/local/bin/audio-worker.sh
 
 # Copy WordPress core into a separate directory (not /var/www/html which is a volume mount)
 # We'll point Apache at /wp-src for first run, then move to /var/www/html after init
@@ -52,6 +68,9 @@ ENV APACHE_RUN_USER=www-data
 ENV APACHE_RUN_GROUP=www-data
 ENV MARIADB_DATABASE=culturinfo
 ENV MARIADB_USER=culturinfo
+ENV CULTURINFO_PIPER_PYTHON=/opt/culturinfo/piper/bin/python
+ENV CULTURINFO_PIPER_MODEL=/opt/culturinfo/voices/es_MX-claude-high.onnx
+ENV CULTURINFO_AUDIO_WORKER_INTERVAL=15
 
 EXPOSE 80
 

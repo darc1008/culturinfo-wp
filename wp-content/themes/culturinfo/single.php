@@ -62,46 +62,7 @@ get_header();
             </div>
         </header>
         <?php if (function_exists('culturinfo_ads_render')) { culturinfo_ads_render('article_after_header', get_the_ID()); } ?>
-
-        <section class="article-reader site-shell" data-culturinfo-reader aria-labelledby="article-reader-title">
-            <div class="article-reader-icon" aria-hidden="true">
-                <span></span><span></span><span></span><span></span>
-            </div>
-            <div class="article-reader-copy">
-                <span class="article-reader-kicker"><?php esc_html_e('Versión en audio', 'culturinfo'); ?></span>
-                <h2 id="article-reader-title"><?php esc_html_e('Escuchar esta noticia', 'culturinfo'); ?></h2>
-                <p><?php esc_html_e('El lector utilizará una voz en español disponible en tu dispositivo.', 'culturinfo'); ?></p>
-            </div>
-            <div class="article-reader-actions">
-                <button class="article-reader-toggle" type="button" data-reader-toggle aria-pressed="false">
-                    <span class="article-reader-play" aria-hidden="true">▶</span>
-                    <span data-reader-toggle-label><?php esc_html_e('Escuchar', 'culturinfo'); ?></span>
-                </button>
-                <button class="article-reader-stop" type="button" data-reader-stop disabled>
-                    <span aria-hidden="true">■</span>
-                    <?php esc_html_e('Detener', 'culturinfo'); ?>
-                </button>
-                <label class="article-reader-voice">
-                    <span><?php esc_html_e('Voz', 'culturinfo'); ?></span>
-                    <select data-reader-voice aria-label="<?php esc_attr_e('Voz española', 'culturinfo'); ?>">
-                        <option value=""><?php esc_html_e('Español automático', 'culturinfo'); ?></option>
-                    </select>
-                </label>
-                <label class="article-reader-speed">
-                    <span><?php esc_html_e('Velocidad', 'culturinfo'); ?></span>
-                    <select data-reader-rate>
-                        <option value="0.75">0.75×</option>
-                        <option value="1" selected>1×</option>
-                        <option value="1.25">1.25×</option>
-                        <option value="1.5">1.5×</option>
-                    </select>
-                </label>
-            </div>
-            <div class="article-reader-progress">
-                <progress data-reader-progress max="100" value="0" aria-label="<?php esc_attr_e('Progreso de lectura', 'culturinfo'); ?>"></progress>
-                <span data-reader-status role="status" aria-live="polite"><?php esc_html_e('Listo para escuchar', 'culturinfo'); ?></span>
-            </div>
-        </section>
+        <?php if (function_exists('culturinfo_audio_render_player')) { culturinfo_audio_render_player(get_the_ID()); } ?>
 
         <?php if (has_post_thumbnail()) : the_post_thumbnail('culturinfo-lead', array('class' => 'article-hero-image')); endif; ?>
 

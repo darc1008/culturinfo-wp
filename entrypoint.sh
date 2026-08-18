@@ -73,6 +73,11 @@ mkdir -p /var/www/html/wp-content/plugins/culturinfo-contact
 cp -a /opt/culturinfo/plugins/culturinfo-contact/. /var/www/html/wp-content/plugins/culturinfo-contact/
 chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-contact
 
+echo "[entrypoint] Sincronizando audio de noticias..."
+mkdir -p /var/www/html/wp-content/plugins/culturinfo-audio
+cp -a /opt/culturinfo/plugins/culturinfo-audio/. /var/www/html/wp-content/plugins/culturinfo-audio/
+chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-audio
+
 # Asegurar permisos
 chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
 
@@ -144,6 +149,9 @@ fi
 echo "[entrypoint] Ajustando permisos de medios..."
 find "$UPLOADS_REAL" -xdev -type d -exec chown www-data:www-data {} + -exec chmod 775 {} +
 find "$UPLOADS_REAL" -xdev -type f -exec chown www-data:www-data {} + -exec chmod 664 {} +
+
+echo "[entrypoint] Iniciando trabajador de audio..."
+runuser -u www-data -- /usr/local/bin/audio-worker.sh &
 
 # Iniciar Apache
 echo "[entrypoint] Iniciando Apache..."

@@ -39,17 +39,6 @@ function culturinfo_assets() {
     wp_enqueue_style('culturinfo-style', get_stylesheet_uri(), array(), $style_version);
     wp_enqueue_script('culturinfo-theme', get_template_directory_uri() . '/assets/js/theme.js', array(), $theme_script_version, true);
 
-    if (is_singular('post')) {
-        $reader_path = get_template_directory() . '/assets/js/article-reader.js';
-        $reader_version = file_exists($reader_path) ? (string) filemtime($reader_path) : wp_get_theme()->get('Version');
-        wp_enqueue_script(
-            'culturinfo-article-reader',
-            get_template_directory_uri() . '/assets/js/article-reader.js',
-            array(),
-            $reader_version,
-            true
-        );
-    }
 }
 add_action('wp_enqueue_scripts', 'culturinfo_assets');
 

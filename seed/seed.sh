@@ -134,6 +134,13 @@ else
   exit 1
 fi
 
+if wp plugin is-installed culturinfo-audio --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-audio --allow-root >/dev/null
+else
+  echo "ERROR: el generador de audio de Culturinfo no fue copiado a WordPress"
+  exit 1
+fi
+
 echo "==> Plugins esenciales"
 for PLUGIN in akismet classic-editor seo-by-rank-math independent-analytics; do
   if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then
@@ -239,6 +246,9 @@ for FILE in /seed/articles/*.md; do
     wp media import "$IMG_URL" --post_id="$POST_ID" --featured_image --allow-root >/dev/null 2>&1 || true
   fi
 done
+
+echo "==> Encolando audios pendientes"
+wp eval 'if (function_exists("culturinfo_audio_enqueue_existing")) { culturinfo_audio_enqueue_existing(); }' --allow-root >/dev/null
 
 echo "==> Página de contacto"
 wp eval-file /seed/configure_contact.php --allow-root >/dev/null

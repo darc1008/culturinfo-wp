@@ -60,21 +60,23 @@ Los editores pueden abrir o cerrar comentarios por noticia y moderarlos desde
 
 ## Lectura de noticias en voz alta
 
-Cada noticia incluye un reproductor con controles para escuchar, pausar,
-continuar, detener y cambiar la velocidad. Utiliza la Web Speech API del
-navegador, prioriza una voz `es-DO` o cualquier voz en español disponible y
-divide automáticamente los artículos extensos para mejorar la estabilidad en
-móviles. No genera archivos de audio, no consume espacio del servidor y no
-requiere API, cuenta externa ni suscripción.
+El plugin propio `Culturinfo — Audio de noticias` genera un MP3 con Piper cuando
+una noticia se publica o cambia. La voz `es_MX-claude-high` se ejecuta dentro del
+contenedor y el archivo se guarda en
+`wp-content/uploads/culturinfo-audio/año/mes`, por lo que no depende de las
+voces instaladas en el navegador ni de una API o suscripción externa.
 
-El selector muestra exclusivamente las voces españolas ofrecidas por el
-dispositivo y prioriza español dominicano y latino. Si no existe ninguna, el
-lector muestra instrucciones para activarla y no utiliza una voz inglesa como
-reemplazo.
+El procesamiento ocurre en segundo plano mediante una cola que atiende una
+noticia por ciclo. Mientras termina, la publicación muestra **Audio en
+preparación** y después lo reemplaza automáticamente por un reproductor HTML5
+con pausa, búsqueda y velocidades entre 0.75× y 2×. Al modificar el título,
+resumen o contenido se crea una versión nueva y se elimina la anterior después
+de completar la sustitución.
 
-La voz concreta depende del navegador y del sistema operativo del visitante. El
-script se carga únicamente en las noticias y excluye menús, anuncios,
-comentarios, pies de foto, contenido relacionado y biografías del autor.
+El panel de edición muestra el estado del audio, el enlace al MP3, posibles
+errores y una opción para regenerarlo manualmente. La lista de noticias añade
+también una columna **Audio**. El modelo utiliza un conjunto de datos con
+licencia Apache-2.0 y su ficha se conserva en `licenses/` y dentro de la imagen.
 
 ## Estadísticas
 
@@ -157,6 +159,7 @@ pueden acceder al menú **Mensajes**.
 
 - WordPress 6.7 (PHP 8.3 + Apache)
 - MariaDB
+- Piper 1.7 + voz neuronal española y LAME
 - Tema: Culturinfo Editorial
 - WP-CLI para instalación y carga idempotente
 - Plugins: Akismet, Classic Editor, Rank Math SEO e Independent Analytics
@@ -171,6 +174,12 @@ pueden acceder al menú **Mensajes**.
    - `/var/www/html` para WordPress.
 5. Copiar las variables de `.env.example` y definir contraseñas seguras.
 6. Desplegar. El contenedor instala WordPress, activa el tema, crea las secciones y configura el menú automáticamente.
+
+El modelo de voz forma parte de la imagen y no necesita un volumen adicional.
+Los MP3 sí permanecen dentro del volumen de WordPress en
+`wp-content/uploads/culturinfo-audio`. El trabajador comprueba la cola cada 15
+segundos; el intervalo puede cambiarse con `CULTURINFO_AUDIO_WORKER_INTERVAL`,
+sin usar valores menores de 5 segundos.
 
 `MARIADB_PASSWORD` es obligatoria en todos los arranques y
 `WP_ADMIN_PASSWORD` lo es durante la primera instalación. La imagen no contiene
