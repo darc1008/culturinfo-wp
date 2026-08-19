@@ -1,5 +1,8 @@
 # Plan 004: Desactivar la edición web de archivos y endurecer permisos
 
+> **Reconciliación 2026-08-18**: REJECTED; supersedido por el plan 012, que añade
+> validación de MIME/tamaño, bloqueo de ejecución en uploads y una matriz de roles.
+
 > **Instrucciones para el ejecutor**: Sigue los pasos en orden, ejecuta cada
 > verificación y detente ante una condición de parada. Actualiza la fila 004 en
 > `plans/README.md` al terminar, salvo que el revisor mantenga el índice.

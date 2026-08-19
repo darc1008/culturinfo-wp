@@ -1,5 +1,9 @@
 # Plan 002: Corregir HTTPS detrás del proxy y eliminar URLs mixtas
 
+> **Reconciliación 2026-08-18**: REJECTED porque fue resuelto por cambios
+> independientes: `configure_proxy.php` actualiza la detección HTTPS y el seed
+> reconcilia `home`/`siteurl`. Producción ya responde detrás del proxy.
+
 > **Instrucciones para el ejecutor**: Sigue todos los pasos y verifica cada uno.
 > Si ocurre una condición de parada, detente y reporta. Al terminar, actualiza
 > la fila 002 de `plans/README.md`, salvo indicación del revisor.

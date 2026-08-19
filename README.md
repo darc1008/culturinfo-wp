@@ -57,6 +57,37 @@ días. Los pingbacks y trackbacks están desactivados para reducir spam.
 
 Los editores pueden abrir o cerrar comentarios por noticia y moderarlos desde
 **Comentarios** en el panel. El correo del lector nunca se muestra públicamente.
+El módulo de seguridad limita por visitante y correo los intentos concurrentes;
+cuando Turnstile está configurado, todo comentario anónimo debe superar además
+el challenge gratuito de Cloudflare.
+
+## Seguridad y protección antiabuso
+
+El plugin propio `Culturinfo — Seguridad` protege el login, comentarios, contacto
+y cargas sin servicios de pago. Los contadores se incrementan atómicamente en la
+base de datos y almacenan únicamente identificadores HMAC, nunca direcciones IP,
+usuarios o correos en claro. El login bloquea temporalmente intentos repetidos por
+usuario/visitante y de forma global por visitante; los mensajes de error no
+confirman si una cuenta existe.
+
+Cloudflare Turnstile es opcional hasta configurar en Coolify
+`CULTURINFO_TURNSTILE_SITE_KEY`, `CULTURINFO_TURNSTILE_SECRET_KEY` y
+`CULTURINFO_TURNSTILE_ENABLED=true`. Sin esas claves siguen activos los límites
+locales, pero no aparece el challenge. Las claves pertenecen al gestor de secretos
+y nunca deben guardarse en Git.
+
+El seed instala el plugin gratuito **Two-Factor**. Cada administrador y editor
+debe entrar en su perfil, enrolar una aplicación TOTP y guardar sus códigos de
+recuperación fuera de WordPress. Este paso no puede automatizarse porque generaría
+y expondría el secreto personal. Antes de exigir 2FA debe existir un segundo
+administrador de recuperación probado.
+
+XML-RPC permanece deshabilitado por defecto. Solo debe habilitarse con
+`CULTURINFO_XMLRPC_ENABLED=true` si existe una integración documentada, por
+ejemplo Jetpack o una app móvil. En Cloudflare conviene añadir Managed Challenge
+y rate limiting para `/wp-login.php`, `/xmlrpc.php`, `/wp-comments-post.php` y
+los POST del formulario de contacto; son una segunda capa, no sustituyen los
+controles del plugin.
 
 ## Lectura de noticias en voz alta
 
@@ -150,19 +181,21 @@ Cada envío se guarda como mensaje privado en WordPress y se intenta notificar a
 correo administrador; por ello el equipo puede revisarlo aun cuando el servidor
 de correo no entregue la notificación.
 
-El formulario permite tres envíos por hora y visitante, incluye campo trampa,
-validación, consentimiento y redirección restringida al sitio. Los mensajes
-privados pasan a la papelera después de 90 días. Solo administradores y editores
-pueden acceder al menú **Mensajes**.
+El formulario permite tres mensajes aceptados por hora y visitante, limita
+intentos, correo y volumen global, e incluye campo trampa, validación,
+consentimiento y redirección restringida al sitio. Un presupuesto compartido
+evita avalanchas de correo: si se agota o `wp_mail` falla, el mensaje permanece
+guardado y muestra su estado en **Mensajes**. Los mensajes privados pasan a la
+papelera después de 90 días. Solo administradores y editores pueden acceder.
 
 ## Stack
 
-- WordPress 6.7 (PHP 8.3 + Apache)
+- WordPress 7.0.2 (PHP 8.3 + Apache)
 - MariaDB
 - Piper 1.7 + voz neuronal española y LAME
 - Tema: Culturinfo Editorial
 - WP-CLI para instalación y carga idempotente
-- Plugins: Akismet, Classic Editor, Rank Math SEO e Independent Analytics
+- Plugins: Two-Factor, Classic Editor, Rank Math SEO e Independent Analytics
 
 ## Despliegue en Coolify
 
@@ -172,8 +205,52 @@ pueden acceder al menú **Mensajes**.
 4. Crear volúmenes persistentes:
    - `/var/lib/mysql` para la base de datos.
    - `/var/www/html` para WordPress.
+   - `/backups` para los respaldos automáticos.
 5. Copiar las variables de `.env.example` y definir contraseñas seguras.
-6. Desplegar. El contenedor instala WordPress, activa el tema, crea las secciones y configura el menú automáticamente.
+6. Crear un widget gratuito de Cloudflare Turnstile para el dominio, guardar sus
+   dos claves en Coolify y cambiar `CULTURINFO_TURNSTILE_ENABLED=true`.
+7. Desplegar. El contenedor instala o migra WordPress, activa el tema, crea las
+   secciones y configura el menú automáticamente.
+
+## Respaldos automáticos
+
+El contenedor puede crear diariamente un paquete restaurable sin interrumpir el
+sitio. Cada paquete contiene una exportación transaccional comprimida de
+MariaDB, un archivo de los datos persistentes de WordPress, un manifiesto y
+checksums SHA-256. Los archivos temporales no se publican como respaldos válidos
+y una ejecución concurrente queda bloqueada.
+
+En Coolify se debe crear un tercer **Volume Mount** con destino `/backups` y
+después configurar:
+
+```env
+CULTURINFO_BACKUPS_ENABLED=true
+CULTURINFO_BACKUP_HOUR=3
+CULTURINFO_BACKUP_RETENTION_DAYS=30
+TZ=America/Santo_Domingo
+```
+
+La hora utiliza `TZ`; el trabajador comprueba cada cinco minutos y reintenta si
+una ejecución falla. La retención admite entre 1 y 365 días. Si `/backups` no es
+un volumen real, el proceso rechaza la ejecución para evitar que una copia
+efímera dé una falsa sensación de seguridad.
+
+Cuando el volumen persistente conserva una versión anterior de WordPress, el
+primer despliegue crea obligatoriamente un respaldo completo antes de modificar
+el core o actualizar la base de datos. La migración se cancela si los respaldos
+no están habilitados o `/backups` no está realmente montado, de modo que una
+configuración incompleta no actualice producción sin punto de recuperación.
+
+Se puede crear una copia manual desde la terminal del contenedor con:
+
+```bash
+/usr/local/bin/culturinfo-backup.sh
+```
+
+El volumen de respaldo protege ante despliegues o daños en los dos volúmenes de
+la aplicación, pero no ante la pérdida completa del servidor. Para recuperación
+ante desastres se debe descargar o sincronizar periódicamente `/backups` hacia
+otro equipo o almacenamiento S3 compatible.
 
 El modelo de voz forma parte de la imagen y no necesita un volumen adicional.
 Los MP3 sí permanecen dentro del volumen de WordPress en
@@ -199,9 +276,21 @@ en una instalación expuesta directamente sin proxy se debe usar `false`.
 El idioma del sitio se instala y activa desde `WP_LOCALE`; el valor recomendado
 para Culturinfo es `es_ES`.
 
-En cada arranque, el contenedor normaliza `wp-content/uploads` a propietario
-`www-data` con directorios `775` y archivos `664`. Esto permite que el panel
-cree las carpetas por año/mes y suba imágenes sin volver escribible el código.
+El core se incluye de forma inmutable en la imagen. Si el volumen conserva una
+versión anterior, el entrypoint ejecuta la actualización desde el ZIP local
+antes del seed; no depende de descargar WordPress durante el arranque.
+
+Después del seed, core, temas, plugins y `wp-config.php` quedan bajo propietario
+root y no son escribibles por Apache. `DISALLOW_FILE_EDIT` y las modificaciones
+web están activadas; las actualizaciones entran por una nueva imagen/WP-CLI. Solo
+`wp-content/uploads` queda en `www-data`, con directorios `775` y archivos `664`.
+Apache bloquea ejecución de PHP/scripts y listado dentro de uploads.
+
+Las cargas manuales están limitadas a administradores y editores, 100 archivos
+por usuario/día, 15 MB y 36 megapíxeles. Se aceptan JPEG, PNG, GIF, WebP y AVIF;
+SVG, PDF, ejecutables, audio y video manual se rechazan. Los MP3 creados por Piper
+son internos y continúan escribiéndose directamente en uploads. Contacto y
+comentarios no aceptan adjuntos.
 
 ## Archivos principales
 

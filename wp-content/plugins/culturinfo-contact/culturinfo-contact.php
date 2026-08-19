@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Culturinfo — Contacto editorial
  * Description: Recibe propuestas y mensajes sin adjuntos, con límites de frecuencia y retención definida.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Horizonte Cultural
  * Text Domain: culturinfo-contact
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CULTURINFO_CONTACT_VERSION', '1.0.0');
+define('CULTURINFO_CONTACT_VERSION', '1.1.0');
 define('CULTURINFO_CONTACT_CAP_VERSION', '1');
 
 function culturinfo_contact_types() {
@@ -137,25 +137,6 @@ function culturinfo_contact_cleanup() {
 }
 add_action('culturinfo_contact_cleanup', 'culturinfo_contact_cleanup');
 
-function culturinfo_contact_fingerprint() {
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
-    if (!empty($_SERVER['HTTP_CF_RAY']) && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
-    }
-    $agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-    return substr(hash_hmac('sha256', $ip . '|' . $agent, wp_salt('auth')), 0, 40);
-}
-
-function culturinfo_contact_rate_allowed() {
-    $key = 'culturinfo_contact_' . culturinfo_contact_fingerprint();
-    $count = absint(get_transient($key));
-    if ($count >= 3) {
-        return false;
-    }
-    set_transient($key, $count + 1, HOUR_IN_SECONDS);
-    return true;
-}
-
 function culturinfo_contact_status_message() {
     $status = isset($_GET['contacto']) ? sanitize_key(wp_unslash($_GET['contacto'])) : '';
     if ($status === 'enviado') {
@@ -164,6 +145,8 @@ function culturinfo_contact_status_message() {
     $messages = array(
         'incompleto' => 'Revisa los campos obligatorios e inténtalo nuevamente.',
         'limite'     => 'Se alcanzó el límite temporal de envíos. Inténtalo nuevamente más tarde.',
+        'seguridad'  => 'La verificación de seguridad venció o no es válida. Inténtalo nuevamente.',
+        'adjunto'    => 'Este formulario no acepta archivos adjuntos.',
         'error'      => 'No fue posible guardar el mensaje. Inténtalo nuevamente.',
     );
     return isset($messages[$status]) ? '<div class="contact-notice contact-notice--error" role="alert">' . esc_html($messages[$status]) . '</div>' : '';
@@ -188,6 +171,11 @@ function culturinfo_contact_form_shortcode() {
             <label class="contact-form-wide"><span>Mensaje *</span><textarea name="contact_message" maxlength="5000" rows="9" required></textarea></label>
             <label class="contact-consent contact-form-wide"><input type="checkbox" name="contact_consent" value="1" required><span>Acepto que Culturinfo utilice estos datos para responder mi solicitud y los conserve por un máximo de 90 días.</span></label>
         </div>
+        <?php
+        if (function_exists('culturinfo_security_turnstile_widget')) {
+            echo culturinfo_security_turnstile_widget('culturinfo_contact'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        }
+        ?>
         <button class="contact-submit" type="submit">Enviar mensaje</button>
     </form>
     <?php
@@ -210,8 +198,22 @@ function culturinfo_contact_submit() {
     if (!empty($_POST['contact_website'])) {
         culturinfo_contact_redirect('enviado');
     }
-    if (!culturinfo_contact_rate_allowed()) {
+    if (!empty($_FILES)) {
+        culturinfo_contact_redirect('adjunto');
+    }
+    if (!function_exists('culturinfo_security_rate_limit') || !function_exists('culturinfo_security_turnstile_verify')) {
+        culturinfo_contact_redirect('error');
+    }
+
+    $identity = culturinfo_security_client_identity('contact_ip');
+    $attempt = culturinfo_security_rate_limit('contact_attempt_15m', $identity, 5, 15 * MINUTE_IN_SECONDS);
+    if (!$attempt['allowed']) {
         culturinfo_contact_redirect('limite');
+    }
+
+    $verified = culturinfo_security_turnstile_verify('culturinfo_contact');
+    if (is_wp_error($verified)) {
+        culturinfo_contact_redirect('seguridad');
     }
 
     $types = culturinfo_contact_types();
@@ -224,6 +226,14 @@ function culturinfo_contact_submit() {
 
     if ($name === '' || strlen($name) > 120 || !is_email($email) || !isset($types[$type]) || $subject === '' || strlen($subject) > 180 || $message === '' || strlen($message) > 5000 || !$consent) {
         culturinfo_contact_redirect('incompleto');
+    }
+
+    $accepted = culturinfo_security_rate_limit('contact_accept_hour', $identity, 3, HOUR_IN_SECONDS);
+    $email_identity = culturinfo_security_hash_identity('contact_email', strtolower($email));
+    $email_limit = culturinfo_security_rate_limit('contact_email_day', $email_identity, 5, DAY_IN_SECONDS);
+    $global_limit = culturinfo_security_rate_limit('contact_global_day', 'global', 100, DAY_IN_SECONDS);
+    if (!$accepted['allowed'] || !$email_limit['allowed'] || !$global_limit['allowed']) {
+        culturinfo_contact_redirect('limite');
     }
 
     $message_id = wp_insert_post(array(
@@ -243,7 +253,12 @@ function culturinfo_contact_submit() {
 
     $mail_subject = '[Culturinfo] ' . $types[$type] . ': ' . $subject;
     $mail_body = "Nombre: {$name}\nCorreo: {$email}\nMotivo: {$types[$type]}\n\n{$message}\n";
-    wp_mail(get_option('admin_email'), $mail_subject, $mail_body, array('Reply-To: ' . $email));
+    if (culturinfo_security_notification_allowed()) {
+        $sent = wp_mail(get_option('admin_email'), $mail_subject, $mail_body, array('Reply-To: ' . $email));
+        update_post_meta($message_id, '_culturinfo_contact_notification', $sent ? 'sent' : 'failed');
+    } else {
+        update_post_meta($message_id, '_culturinfo_contact_notification', 'suppressed');
+    }
     culturinfo_contact_redirect('enviado');
 }
 add_action('admin_post_nopriv_culturinfo_contact_submit', 'culturinfo_contact_submit');
@@ -261,6 +276,15 @@ function culturinfo_contact_details_box_html($post) {
     echo '<p><strong>Correo</strong><br><a href="mailto:' . esc_attr(get_post_meta($post->ID, '_culturinfo_contact_email', true)) . '">' . esc_html(get_post_meta($post->ID, '_culturinfo_contact_email', true)) . '</a></p>';
     echo '<p><strong>Motivo</strong><br>' . esc_html($types[$type] ?? $type) . '</p>';
     echo '<p><strong>Recibido</strong><br>' . esc_html(get_post_meta($post->ID, '_culturinfo_contact_received', true)) . '</p>';
+    $notification = get_post_meta($post->ID, '_culturinfo_contact_notification', true);
+    $notification_labels = array(
+        'sent'       => 'Notificación enviada',
+        'failed'     => 'Notificación fallida; el mensaje está guardado',
+        'suppressed' => 'Notificación omitida por límite temporal',
+    );
+    if ($notification !== '') {
+        echo '<p><strong>Correo</strong><br>' . esc_html($notification_labels[$notification] ?? $notification) . '</p>';
+    }
     echo '<p class="description">Los mensajes pasan a la papelera después de 90 días.</p>';
 }
 

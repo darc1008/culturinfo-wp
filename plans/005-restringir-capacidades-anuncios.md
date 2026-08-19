@@ -1,5 +1,9 @@
 # Plan 005: Restringir la administración de anuncios a editores autorizados
 
+> **Reconciliación 2026-08-18**: REJECTED porque el hallazgo fue corregido por
+> cambios independientes. El plugin actual usa capacidades propias, `map_meta_cap`,
+> migración versionada y `edit_culturinfo_ad` al guardar.
+
 > **Instrucciones para el ejecutor**: Ejecuta el plan completo y cada gate. No
 > improvises ante deriva o fallos. Actualiza la fila 005 en `plans/README.md` al
 > terminar, salvo que el revisor mantenga el índice.

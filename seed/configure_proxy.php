@@ -17,7 +17,7 @@ if ($config_path === '' || !is_file($config_path) || is_link($config_path)) {
     exit(1);
 }
 
-$marker = 'CULTURINFO_REVERSE_PROXY_HTTPS';
+$marker = 'CULTURINFO_REVERSE_PROXY_HTTPS_V2';
 $config = file_get_contents($config_path);
 if ($config === false) {
     fwrite(STDERR, "No se pudo leer wp-config.php.\n");
@@ -30,10 +30,10 @@ if (strpos($config, $marker) !== false) {
 
 $anchor = "/* That's all, stop editing! Happy publishing. */";
 $snippet = <<<'PHP'
-/* CULTURINFO_REVERSE_PROXY_HTTPS */
+/* CULTURINFO_REVERSE_PROXY_HTTPS_V2 */
 $culturinfo_trust_proxy = getenv('TRUST_PROXY_HEADERS');
-$culturinfo_trust_proxy = $culturinfo_trust_proxy === false
-    || !in_array(strtolower(trim($culturinfo_trust_proxy)), array('0', 'false', 'no', 'off'), true);
+$culturinfo_trust_proxy = $culturinfo_trust_proxy !== false
+    && in_array(strtolower(trim($culturinfo_trust_proxy)), array('1', 'true', 'yes', 'on'), true);
 
 if ($culturinfo_trust_proxy && isset($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
     $culturinfo_forwarded_protos = array_map(
@@ -55,14 +55,19 @@ unset($culturinfo_trust_proxy, $culturinfo_forwarded_protos);
 PHP;
 
 $replacement_count = 0;
-$updated_config = str_replace(
-    $anchor,
-    $snippet . "\n\n" . $anchor,
-    $config,
-    $replacement_count
-);
+$old_pattern = '~\/\* CULTURINFO_REVERSE_PROXY_HTTPS \*\/.*?unset\(\$culturinfo_trust_proxy, \$culturinfo_forwarded_protos\);\R~s';
+if (preg_match($old_pattern, $config)) {
+    $updated_config = preg_replace($old_pattern, $snippet . "\n", $config, 1, $replacement_count);
+} else {
+    $updated_config = str_replace(
+        $anchor,
+        $snippet . "\n\n" . $anchor,
+        $config,
+        $replacement_count
+    );
+}
 
-if ($replacement_count !== 1) {
+if ($updated_config === null || $replacement_count !== 1) {
     fwrite(STDERR, "No se encontró un ancla única en wp-config.php.\n");
     exit(1);
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 # culturinfo - Entrypoint: inicializa MariaDB local, ejecuta seed, arranca Apache
-set -e
+set -euo pipefail
 
 echo "[entrypoint] Iniciando culturinfo..."
 
@@ -28,6 +28,46 @@ sql_string() {
 
 MARIADB_PASSWORD_SQL="$(sql_string "$MARIADB_PASSWORD")"
 
+culturinfo_backups_enabled() {
+  case "${CULTURINFO_BACKUPS_ENABLED:-false}" in
+    true|TRUE|1|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_wordpress_path() {
+  local path="$1"
+  local resolved
+  case "$path" in
+    /var/www/html|/var/www/html/*) ;;
+    *) echo "ERROR: ruta fuera de WordPress: $path"; exit 1 ;;
+  esac
+  case "/$path/" in
+    */../*|*/./*) echo "ERROR: ruta WordPress no normalizada: $path"; exit 1 ;;
+  esac
+  if [ -L "$path" ]; then
+    echo "ERROR: no se permite enlace simbólico: $path"
+    exit 1
+  fi
+  mkdir -p "$path"
+  resolved="$(readlink -f "$path")"
+  if [ "$resolved" != "/var/www/html" ] && [ "${resolved#/var/www/html/}" = "$resolved" ]; then
+    echo "ERROR: ruta resuelta fuera de WordPress: $resolved"
+    exit 1
+  fi
+}
+
+sync_versioned_tree() {
+  local source="$1"
+  local destination="$2"
+  validate_wordpress_path "$destination"
+  if [ ! -d "$source" ] || [ -L "$source" ]; then
+    echo "ERROR: fuente versionada inválida: $source"
+    exit 1
+  fi
+  cp -a "$source"/. "$destination"/
+}
+
 # Inicializar MariaDB si la base está vacía
 if [ ! -d /var/lib/mysql/mysql ]; then
   echo "[entrypoint] Inicializando MariaDB..."
@@ -38,48 +78,18 @@ fi
 if [ ! -f /var/www/html/wp-load.php ]; then
   echo "[entrypoint] Copiando WordPress core al volumen..."
   cp -a /usr/src/wordpress/. /var/www/html/
-  chown -R www-data:www-data /var/www/html
 fi
 
 # Sincronizar el tema editorial versionado en cada despliegue.
 # El directorio de WordPress es persistente, por eso el tema se copia al arrancar.
-echo "[entrypoint] Sincronizando tema Culturinfo Editorial..."
-mkdir -p /var/www/html/wp-content/themes/culturinfo
-cp -a /opt/culturinfo/theme/. /var/www/html/wp-content/themes/culturinfo/
-chown -R www-data:www-data /var/www/html/wp-content/themes/culturinfo
-
-echo "[entrypoint] Sincronizando gestor de anuncios..."
-mkdir -p /var/www/html/wp-content/plugins/culturinfo-ads
-cp -a /opt/culturinfo/plugins/culturinfo-ads/. /var/www/html/wp-content/plugins/culturinfo-ads/
-chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-ads
-
-echo "[entrypoint] Sincronizando autores editoriales..."
-mkdir -p /var/www/html/wp-content/plugins/culturinfo-authors
-cp -a /opt/culturinfo/plugins/culturinfo-authors/. /var/www/html/wp-content/plugins/culturinfo-authors/
-chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-authors
-
-echo "[entrypoint] Sincronizando estadisticas Culturinfo..."
-mkdir -p /var/www/html/wp-content/plugins/culturinfo-stats
-cp -a /opt/culturinfo/plugins/culturinfo-stats/. /var/www/html/wp-content/plugins/culturinfo-stats/
-chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-stats
-
-echo "[entrypoint] Sincronizando programacion editorial..."
-mkdir -p /var/www/html/wp-content/plugins/culturinfo-publishing
-cp -a /opt/culturinfo/plugins/culturinfo-publishing/. /var/www/html/wp-content/plugins/culturinfo-publishing/
-chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-publishing
-
-echo "[entrypoint] Sincronizando contacto editorial..."
-mkdir -p /var/www/html/wp-content/plugins/culturinfo-contact
-cp -a /opt/culturinfo/plugins/culturinfo-contact/. /var/www/html/wp-content/plugins/culturinfo-contact/
-chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-contact
-
-echo "[entrypoint] Sincronizando audio de noticias..."
-mkdir -p /var/www/html/wp-content/plugins/culturinfo-audio
-cp -a /opt/culturinfo/plugins/culturinfo-audio/. /var/www/html/wp-content/plugins/culturinfo-audio/
-chown -R www-data:www-data /var/www/html/wp-content/plugins/culturinfo-audio
+echo "[entrypoint] Sincronizando código versionado..."
+sync_versioned_tree /opt/culturinfo/theme /var/www/html/wp-content/themes/culturinfo
+for plugin in culturinfo-ads culturinfo-authors culturinfo-stats culturinfo-publishing culturinfo-contact culturinfo-audio culturinfo-security; do
+  sync_versioned_tree "/opt/culturinfo/plugins/$plugin" "/var/www/html/wp-content/plugins/$plugin"
+done
 
 # Asegurar permisos
-chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
+chown -R mysql:mysql /var/lib/mysql /var/run/mysqld
 
 # Iniciar MariaDB
 echo "[entrypoint] Iniciando MariaDB..."
@@ -126,6 +136,33 @@ fi
 echo "[entrypoint] Configurando detección HTTPS del proxy..."
 php /seed/configure_proxy.php /var/www/html/wp-config.php
 
+echo "[entrypoint] Configurando seguridad de archivos..."
+php /seed/configure_security.php /var/www/html/wp-config.php
+
+# El core vive en un volumen. Actualizarlo explícitamente desde el paquete
+# inmutable de la imagen antes de cargar tema o plugins.
+CURRENT_CORE_VERSION="$(wp core version --allow-root)"
+if [ "$CURRENT_CORE_VERSION" != "7.0.2" ]; then
+  if wp core is-installed --skip-plugins --skip-themes --allow-root >/dev/null 2>&1; then
+    if ! culturinfo_backups_enabled; then
+      echo "ERROR: se requiere CULTURINFO_BACKUPS_ENABLED=true para respaldar WordPress antes de migrar $CURRENT_CORE_VERSION -> 7.0.2"
+      exit 1
+    fi
+    echo "[entrypoint] Creando respaldo obligatorio antes de actualizar WordPress..."
+    /usr/local/bin/culturinfo-backup.sh
+  fi
+  echo "[entrypoint] Actualizando WordPress $CURRENT_CORE_VERSION -> 7.0.2..."
+  wp core update /opt/culturinfo/core/wordpress-7.0.2-no-content.zip \
+    --force --skip-plugins --skip-themes --allow-root
+fi
+if [ "$(wp core version --allow-root)" != "7.0.2" ]; then
+  echo "ERROR: WordPress no quedó en la versión 7.0.2"
+  exit 1
+fi
+if wp core is-installed --skip-plugins --skip-themes --allow-root >/dev/null 2>&1; then
+  wp core update-db --skip-plugins --skip-themes --allow-root
+fi
+
 # Run seed (foreground, with output to stdout)
 echo "[entrypoint] Ejecutando seed..."
 /usr/local/bin/seed.sh 2>&1 | tee /tmp/seed.log
@@ -150,8 +187,21 @@ echo "[entrypoint] Ajustando permisos de medios..."
 find "$UPLOADS_REAL" -xdev -type d -exec chown www-data:www-data {} + -exec chmod 775 {} +
 find "$UPLOADS_REAL" -xdev -type f -exec chown www-data:www-data {} + -exec chmod 664 {} +
 
+echo "[entrypoint] Bloqueando core, temas y plugins contra escritura web..."
+find /var/www/html -xdev -path "$UPLOADS_REAL" -prune -o -type d -exec chown root:www-data {} + -exec chmod 755 {} +
+find /var/www/html -xdev -path "$UPLOADS_REAL" -prune -o -type f -exec chown root:www-data {} + -exec chmod 644 {} +
+chown root:www-data /var/www/html/wp-config.php
+chmod 640 /var/www/html/wp-config.php
+
 echo "[entrypoint] Iniciando trabajador de audio..."
 runuser -u www-data -- /usr/local/bin/audio-worker.sh &
+
+if culturinfo_backups_enabled; then
+  echo "[entrypoint] Iniciando respaldos automaticos..."
+  /usr/local/bin/backup-worker.sh &
+else
+  echo "[entrypoint] Respaldos automaticos deshabilitados"
+fi
 
 # Iniciar Apache
 echo "[entrypoint] Iniciando Apache..."

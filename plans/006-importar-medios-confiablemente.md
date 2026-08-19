@@ -1,5 +1,9 @@
 # Plan 006: Importar imágenes destacadas de forma confiable e idempotente
 
+> **Reconciliación 2026-08-18**: sigue TODO. En `2b95226`, `seed/seed.sh:246`
+> todavía oculta cualquier fallo de `wp media import` con `|| true`. Ejecutar
+> después del plan 008 y volver a medir los adjuntos del entorno objetivo.
+
 > **Instrucciones para el ejecutor**: Sigue cada paso y verifica el resultado.
 > Detente ante una condición de parada. Actualiza la fila 006 en
 > `plans/README.md` al terminar, salvo que el revisor mantenga el índice.
@@ -14,7 +18,7 @@
 - **Prioridad**: P1
 - **Esfuerzo**: M
 - **Riesgo**: MED
-- **Depende de**: `plans/003-migrar-wordpress-7-0-2.md`
+- **Depende de**: `plans/008-migrar-wordpress-persistente-7-0-2.md`
 - **Categoría**: bug
 - **Planificado en**: commit `aa2da49`, 2026-08-03 (árbol de trabajo sucio)
 

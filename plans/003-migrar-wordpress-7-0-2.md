@@ -1,5 +1,9 @@
 # Plan 003: Migrar la plataforma a WordPress 7.0.2
 
+> **Reconciliación 2026-08-18**: REJECTED por deriva sustancial. El plan 008 lo
+> supersede e incorpora los plugins propios añadidos y la migración real del core
+> dentro del volumen persistente, que este documento no resolvía.
+
 > **Instrucciones para el ejecutor**: Ejecuta cada paso y sus verificaciones.
 > No avances ante una condición de parada. Al terminar, actualiza la fila 003
 > de `plans/README.md`, salvo que el revisor mantenga el índice.

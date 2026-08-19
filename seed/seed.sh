@@ -99,15 +99,22 @@ if ! wp theme is-installed culturinfo --allow-root >/dev/null 2>&1; then
 fi
 wp theme activate culturinfo --allow-root
 
+if wp plugin is-installed culturinfo-security --allow-root >/dev/null 2>&1; then
+  wp plugin activate culturinfo-security --allow-root >/dev/null
+else
+  echo "ERROR: el módulo de seguridad de Culturinfo no fue copiado a WordPress"
+  exit 1
+fi
+
 if wp plugin is-installed culturinfo-ads --allow-root >/dev/null 2>&1; then
-  wp plugin activate culturinfo-ads --allow-root >/dev/null 2>&1 || true
+  wp plugin activate culturinfo-ads --allow-root >/dev/null
 else
   echo "ERROR: el gestor de anuncios de Culturinfo no fue copiado a WordPress"
   exit 1
 fi
 
 if wp plugin is-installed culturinfo-authors --allow-root >/dev/null 2>&1; then
-  wp plugin activate culturinfo-authors --allow-root >/dev/null 2>&1 || true
+  wp plugin activate culturinfo-authors --allow-root >/dev/null
 else
   echo "ERROR: el gestor de autores de Culturinfo no fue copiado a WordPress"
   exit 1
@@ -142,7 +149,7 @@ else
 fi
 
 echo "==> Plugins esenciales"
-for PLUGIN in akismet classic-editor seo-by-rank-math independent-analytics; do
+for PLUGIN in classic-editor seo-by-rank-math independent-analytics two-factor; do
   if ! wp plugin is-installed "$PLUGIN" --allow-root >/dev/null 2>&1; then
     wp plugin install "$PLUGIN" --activate --allow-root 2>&1 | tail -2
   else

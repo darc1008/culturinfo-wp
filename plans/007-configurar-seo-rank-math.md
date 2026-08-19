@@ -1,5 +1,9 @@
 # Plan 007: Configurar metadatos SEO, sociales y datos estructurados
 
+> **Reconciliación 2026-08-18**: REJECTED porque el hallazgo fue resuelto por
+> cambios independientes. `seed/configure_rank_math.php` se ejecuta en cada seed
+> y la documentación ya cubre canonical, Open Graph, Twitter Card y `og:image`.
+
 > **Instrucciones para el ejecutor**: Sigue el plan en orden y ejecuta cada
 > comprobación. Si hay deriva, salida duplicada o una condición de parada,
 > detente y reporta. Actualiza la fila 007 en `plans/README.md` al terminar,

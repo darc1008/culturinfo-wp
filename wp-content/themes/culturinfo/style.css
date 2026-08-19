@@ -314,7 +314,7 @@ button { cursor: pointer; }
 .comment-policy, .comment-notes, .logged-in-as { color: var(--muted); font-size: .86rem; line-height: 1.55; }
 .comment-form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .comment-form > p { margin: 0; }
-.comment-form-comment, .comment-notes, .comment-policy, .logged-in-as, .comment-form-cookies-consent, .form-submit { grid-column: 1 / -1; }
+.comment-form-comment, .comment-notes, .comment-policy, .logged-in-as, .comment-form-cookies-consent, .culturinfo-turnstile, .form-submit { grid-column: 1 / -1; }
 .comment-form label { display: block; margin-bottom: 6px; font-size: .71rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .comment-form input[type="text"], .comment-form input[type="email"], .comment-form input[type="url"], .comment-form textarea { width: 100%; padding: 12px 14px; border: 1px solid #c9c5bd; background: var(--white); color: var(--ink); font: inherit; }
 .comment-form textarea { min-height: 150px; resize: vertical; }
@@ -345,7 +345,8 @@ button { cursor: pointer; }
 .contact-form-grid .contact-consent > span:first-of-type { margin: 0; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; text-transform: none; }
 .contact-submit { margin-top: 24px; min-height: 48px; border: 0; padding: 0 25px; background: var(--orange); color: var(--white); font-size: .73rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .contact-submit:hover { background: var(--orange-dark); }
-.contact-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
+.contact-honeypot, .culturinfo-comment-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
+.culturinfo-turnstile { margin-top: 18px; }
 .contact-notice { margin: 0 0 22px; padding: 14px 16px; border-left: 4px solid; }
 .contact-notice--success { border-color: #16834b; background: #e8f5ed; color: #115d37; }
 .contact-notice--error { border-color: #b32d2e; background: #faeaea; color: #7c2021; }

@@ -1,4 +1,13 @@
-FROM wordpress:6.7-php8.3-apache
+FROM wordpress:7.0.2-php8.3-apache AS core-package
+
+RUN apt-get update && apt-get install -y --no-install-recommends zip \
+    && mkdir -p /tmp/culturinfo-core/wordpress /opt/culturinfo/core \
+    && find /usr/src/wordpress -mindepth 1 -maxdepth 1 ! -name wp-content \
+        -exec cp -a {} /tmp/culturinfo-core/wordpress/ \; \
+    && cd /tmp/culturinfo-core \
+    && zip -qr /opt/culturinfo/core/wordpress-7.0.2-no-content.zip wordpress
+
+FROM wordpress:7.0.2-php8.3-apache
 
 # Install MariaDB, audio runtime and wp-cli
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv \
     lame \
     libgomp1 \
+    tzdata \
+    util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
     && chmod +x wp-cli.phar \
@@ -36,6 +47,10 @@ RUN mkdir -p /var/run/mysqld /var/lib/mysql \
     && chown -R mysql:mysql /var/run/mysqld /var/lib/mysql
 COPY mariadb.cnf /etc/mysql/conf.d/culturinfo.cnf
 
+# Uploads is writable at runtime, so Apache must never execute code from it.
+COPY apache/culturinfo-uploads.conf /etc/apache2/conf-available/culturinfo-uploads.conf
+RUN a2enmod headers && a2enconf culturinfo-uploads
+
 # supervisord to run mariadb + apache together
 COPY supervisord.conf /etc/supervisor/conf.d/culturinfo.conf
 
@@ -45,6 +60,7 @@ COPY seed/articles /seed/articles
 COPY seed/assign_menu.php /seed/assign_menu.php
 COPY seed/configure_menu.php /seed/configure_menu.php
 COPY seed/configure_proxy.php /seed/configure_proxy.php
+COPY seed/configure_security.php /seed/configure_security.php
 COPY seed/configure_rank_math.php /seed/configure_rank_math.php
 COPY seed/configure_contact.php /seed/configure_contact.php
 COPY wp-content/themes/culturinfo /opt/culturinfo/theme
@@ -54,9 +70,18 @@ COPY wp-content/plugins/culturinfo-stats /opt/culturinfo/plugins/culturinfo-stat
 COPY wp-content/plugins/culturinfo-publishing /opt/culturinfo/plugins/culturinfo-publishing
 COPY wp-content/plugins/culturinfo-contact /opt/culturinfo/plugins/culturinfo-contact
 COPY wp-content/plugins/culturinfo-audio /opt/culturinfo/plugins/culturinfo-audio
+COPY wp-content/plugins/culturinfo-security /opt/culturinfo/plugins/culturinfo-security
+COPY --from=core-package /opt/culturinfo/core/wordpress-7.0.2-no-content.zip /opt/culturinfo/core/wordpress-7.0.2-no-content.zip
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY audio-worker.sh /usr/local/bin/audio-worker.sh
-RUN chmod +x /usr/local/bin/seed.sh /usr/local/bin/entrypoint.sh /usr/local/bin/audio-worker.sh
+COPY culturinfo-backup.sh /usr/local/bin/culturinfo-backup.sh
+COPY backup-worker.sh /usr/local/bin/backup-worker.sh
+RUN mkdir -p /backups \
+    && chmod +x /usr/local/bin/seed.sh \
+        /usr/local/bin/entrypoint.sh \
+        /usr/local/bin/audio-worker.sh \
+        /usr/local/bin/culturinfo-backup.sh \
+        /usr/local/bin/backup-worker.sh
 
 # Copy WordPress core into a separate directory (not /var/www/html which is a volume mount)
 # We'll point Apache at /wp-src for first run, then move to /var/www/html after init
@@ -71,6 +96,9 @@ ENV MARIADB_USER=culturinfo
 ENV CULTURINFO_PIPER_PYTHON=/opt/culturinfo/piper/bin/python
 ENV CULTURINFO_PIPER_MODEL=/opt/culturinfo/voices/es_MX-claude-high.onnx
 ENV CULTURINFO_AUDIO_WORKER_INTERVAL=15
+ENV CULTURINFO_BACKUPS_ENABLED=false
+ENV CULTURINFO_BACKUP_HOUR=3
+ENV CULTURINFO_BACKUP_RETENTION_DAYS=30
 
 EXPOSE 80
 

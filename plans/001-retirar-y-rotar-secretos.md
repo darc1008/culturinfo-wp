@@ -1,5 +1,9 @@
 # Plan 001: Retirar credenciales embebidas y rotarlas
 
+> **Reconciliación 2026-08-18**: el código ya exige `MARIADB_PASSWORD`, valida
+> identificadores y no contiene el antiguo default. Permanece BLOCKED únicamente
+> hasta que el operador confirme la rotación coordinada en producción.
+
 > **Instrucciones para el ejecutor**: Sigue este plan paso a paso. Ejecuta cada
 > verificación y confirma el resultado esperado antes de continuar. Si ocurre
 > una condición de parada, detente y reporta; no improvises. Al terminar,
