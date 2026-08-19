@@ -240,6 +240,9 @@ primer despliegue crea obligatoriamente un respaldo completo antes de modificar
 el core o actualizar la base de datos. La migración se cancela si los respaldos
 no están habilitados o `/backups` no está realmente montado, de modo que una
 configuración incompleta no actualice producción sin punto de recuperación.
+Si la base todavía no contiene una instalación, el contenedor conserva
+`wp-content` y `wp-config.php`, sustituye únicamente el core antiguo por el core
+7.0.2 de la imagen y deja que el seed complete la instalación inicial.
 
 Se puede crear una copia manual desde la terminal del contenedor con:
 

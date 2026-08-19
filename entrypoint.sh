@@ -142,24 +142,35 @@ php /seed/configure_security.php /var/www/html/wp-config.php
 # El core vive en un volumen. Actualizarlo explícitamente desde el paquete
 # inmutable de la imagen antes de cargar tema o plugins.
 CURRENT_CORE_VERSION="$(wp core version --allow-root)"
+WORDPRESS_IS_INSTALLED=false
+if wp core is-installed --skip-plugins --skip-themes --allow-root >/dev/null 2>&1; then
+  WORDPRESS_IS_INSTALLED=true
+fi
 if [ "$CURRENT_CORE_VERSION" != "7.0.2" ]; then
-  if wp core is-installed --skip-plugins --skip-themes --allow-root >/dev/null 2>&1; then
+  if [ "$WORDPRESS_IS_INSTALLED" = true ]; then
     if ! culturinfo_backups_enabled; then
       echo "ERROR: se requiere CULTURINFO_BACKUPS_ENABLED=true para respaldar WordPress antes de migrar $CURRENT_CORE_VERSION -> 7.0.2"
       exit 1
     fi
     echo "[entrypoint] Creando respaldo obligatorio antes de actualizar WordPress..."
     /usr/local/bin/culturinfo-backup.sh
+    echo "[entrypoint] Actualizando WordPress $CURRENT_CORE_VERSION -> 7.0.2..."
+    wp core update /opt/culturinfo/core/wordpress-7.0.2-no-content.zip \
+      --force --skip-plugins --skip-themes --allow-root
+  else
+    echo "[entrypoint] Base sin instalar; preparando core limpio 7.0.2..."
+    rsync -a --delete \
+      --exclude='wp-content/' \
+      --exclude='wp-config.php' \
+      --exclude='.htaccess' \
+      /usr/src/wordpress/ /var/www/html/
   fi
-  echo "[entrypoint] Actualizando WordPress $CURRENT_CORE_VERSION -> 7.0.2..."
-  wp core update /opt/culturinfo/core/wordpress-7.0.2-no-content.zip \
-    --force --skip-plugins --skip-themes --allow-root
 fi
 if [ "$(wp core version --allow-root)" != "7.0.2" ]; then
   echo "ERROR: WordPress no quedó en la versión 7.0.2"
   exit 1
 fi
-if wp core is-installed --skip-plugins --skip-themes --allow-root >/dev/null 2>&1; then
+if [ "$WORDPRESS_IS_INSTALLED" = true ]; then
   wp core update-db --skip-plugins --skip-themes --allow-root
 fi
 

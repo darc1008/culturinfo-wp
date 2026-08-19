@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv \
     lame \
     libgomp1 \
+    rsync \
     tzdata \
     util-linux \
     && rm -rf /var/lib/apt/lists/* \
