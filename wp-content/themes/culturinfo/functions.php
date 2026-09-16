@@ -83,6 +83,29 @@ function culturinfo_sections() {
     );
 }
 
+/**
+ * Inicio de la edición vigente, según el horario editorial general del sitio.
+ * Las secciones con horario propio también aparecen al publicarse dentro de ella.
+ */
+function culturinfo_current_edition_start() {
+    $settings = get_option('culturinfo_publishing_settings', array());
+    $settings = is_array($settings) ? $settings : array();
+    $day = isset($settings['default_day']) && is_scalar($settings['default_day'])
+        ? min(6, max(0, absint($settings['default_day']))) : 6;
+    $time = isset($settings['default_time']) && is_string($settings['default_time'])
+        && preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $settings['default_time'])
+        ? $settings['default_time'] : '08:00';
+    list($hour, $minute) = array_map('intval', explode(':', $time));
+
+    $now = current_datetime();
+    $days_back = ((int) $now->format('w') - $day + 7) % 7;
+    $start = $now->setTime($hour, $minute, 0)->modify('-' . $days_back . ' days');
+    if ($start > $now) {
+        $start = $start->modify('-7 days');
+    }
+    return $start;
+}
+
 function culturinfo_section_data($slug = '') {
     $sections = culturinfo_sections();
     return isset($sections[$slug]) ? $sections[$slug] : array(

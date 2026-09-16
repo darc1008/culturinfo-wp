@@ -79,6 +79,83 @@ $lead_posts = $lead_query->posts;
         <?php endif; wp_reset_postdata(); ?>
         <?php if (function_exists('culturinfo_ads_render')) { culturinfo_ads_render('home_after_lead'); } ?>
 
+        <?php
+        $edition_start = culturinfo_current_edition_start();
+        $edition_start_date = $edition_start->format('Y-m-d H:i:s');
+        $edition_check = new WP_Query(array(
+            'post_type'           => 'post',
+            'post_status'         => 'publish',
+            'posts_per_page'      => 1,
+            'fields'              => 'ids',
+            'no_found_rows'      => true,
+            'ignore_sticky_posts' => true,
+            'date_query'         => array(array('after' => $edition_start_date, 'inclusive' => true)),
+        ));
+        $has_current_edition = $edition_check->have_posts();
+        $news_page_value = isset($_GET['noticias']) && is_scalar($_GET['noticias']) ? wp_unslash($_GET['noticias']) : 1;
+        $news_page = max(1, absint($news_page_value));
+        $recent_args = array(
+            'post_type'           => 'post',
+            'post_status'         => 'publish',
+            'posts_per_page'      => 9,
+            'paged'               => $news_page,
+            'post__not_in'       => wp_list_pluck($lead_posts, 'ID'),
+            'ignore_sticky_posts' => true,
+            'orderby'            => array('date' => 'DESC', 'ID' => 'DESC'),
+        );
+        if ($has_current_edition) {
+            $recent_args['date_query'] = array(array('after' => $edition_start_date, 'inclusive' => true));
+        }
+        $recent_query = new WP_Query($recent_args);
+        ?>
+        <?php if ($has_current_edition || $recent_query->found_posts) : ?>
+            <section id="noticias-semana" class="recent-stories" aria-labelledby="recent-stories-title">
+                <header class="section-heading">
+                    <span class="section-number">CI</span>
+                    <div class="section-heading-main">
+                        <h2 id="recent-stories-title" class="section-title"><?php echo esc_html($has_current_edition ? __('Noticias de esta semana', 'culturinfo') : __('Últimas publicaciones', 'culturinfo')); ?></h2>
+                        <span class="section-deck"><?php echo esc_html($has_current_edition
+                            ? sprintf(__('Edición desde el %s · Todas las secciones', 'culturinfo'), wp_date('j \d\e F', $edition_start->getTimestamp(), wp_timezone()))
+                            : __('Mientras llega la próxima edición, sigue explorando las noticias recientes.', 'culturinfo')); ?></span>
+                    </div>
+                </header>
+                <?php if ($recent_query->have_posts()) : ?>
+                    <div class="recent-grid">
+                        <?php foreach ($recent_query->posts as $recent_post) :
+                            $recent_categories = get_the_category($recent_post->ID);
+                        ?>
+                            <article class="recent-card">
+                                <?php if (has_post_thumbnail($recent_post)) : ?>
+                                    <a class="recent-card-media" href="<?php echo esc_url(get_permalink($recent_post)); ?>" tabindex="-1" aria-hidden="true">
+                                        <?php echo get_the_post_thumbnail($recent_post, 'culturinfo-card'); ?>
+                                    </a>
+                                <?php endif; ?>
+                                <?php if ($recent_categories) : ?><span class="card-category"><?php echo esc_html($recent_categories[0]->name); ?></span><?php endif; ?>
+                                <h3><a href="<?php echo esc_url(get_permalink($recent_post)); ?>"><?php echo esc_html(get_the_title($recent_post)); ?></a></h3>
+                                <div class="card-meta"><?php echo esc_html(get_the_date('j \d\e F, Y', $recent_post)); ?> · <?php echo esc_html(culturinfo_editorial_author_name($recent_post->ID)); ?></div>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if ($recent_query->max_num_pages > 1) : ?>
+                        <nav class="pagination" aria-label="<?php esc_attr_e('Páginas de noticias recientes', 'culturinfo'); ?>">
+                            <div class="nav-links">
+                                <?php echo paginate_links(array(
+                                    'base'      => trailingslashit(home_url('/')) . '?noticias=%#%#noticias-semana',
+                                    'format'    => '',
+                                    'current'   => $news_page,
+                                    'total'     => $recent_query->max_num_pages,
+                                    'prev_text' => '←',
+                                    'next_text' => '→',
+                                )); ?>
+                            </div>
+                        </nav>
+                    <?php endif; ?>
+                <?php elseif ($has_current_edition && $news_page === 1) : ?>
+                    <p class="recent-empty"><?php esc_html_e('Las noticias de esta edición ya aparecen en los titulares principales.', 'culturinfo'); ?></p>
+                <?php endif; ?>
+            </section>
+        <?php endif; wp_reset_postdata(); ?>
+
         <aside class="editorial-statement" aria-label="<?php esc_attr_e('Declaración editorial', 'culturinfo'); ?>">
             <span class="statement-mark" aria-hidden="true">“</span>
             <p><?php esc_html_e('La cultura no es un adorno: es la forma en que una comunidad se piensa, se cuenta y se transforma.', 'culturinfo'); ?></p>
