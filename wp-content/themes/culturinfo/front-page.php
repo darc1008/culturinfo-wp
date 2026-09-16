@@ -6,13 +6,37 @@
  */
 get_header();
 
-$lead_query = new WP_Query(array(
+$latest_query = new WP_Query(array(
     'posts_per_page'      => 1,
     'post_status'         => 'publish',
     'ignore_sticky_posts' => true,
     'orderby'             => array('date' => 'DESC', 'ID' => 'DESC'),
 ));
-$lead_posts = $lead_query->posts;
+$lead_posts = array();
+if (!empty($latest_query->posts)) {
+    $latest_post = $latest_query->posts[0];
+    $latest_date = get_post_datetime($latest_post, 'date') ?: current_datetime();
+    $edition_start = culturinfo_edition_start($latest_date);
+    $edition_end = $edition_start->modify('+7 days');
+    $lead_query = new WP_Query(array(
+        'posts_per_page'      => -1,
+        'post_status'         => 'publish',
+        'ignore_sticky_posts' => true,
+        'orderby'             => array('date' => 'DESC', 'ID' => 'DESC'),
+        'date_query'          => array(
+            'relation' => 'AND',
+            array(
+                'after'     => $edition_start->format('Y-m-d H:i:s'),
+                'inclusive' => true,
+            ),
+            array(
+                'before'    => $edition_end->format('Y-m-d H:i:s'),
+                'inclusive' => false,
+            ),
+        ),
+    ));
+    $lead_posts = $lead_query->posts;
+}
 ?>
 <main id="main-content" class="front-main">
     <div class="site-shell">
@@ -23,14 +47,11 @@ $lead_posts = $lead_query->posts;
             $lead = $lead_posts[0];
             $lead_category = get_the_category($lead->ID);
         ?>
-            <section class="lead-grid is-single" aria-label="<?php esc_attr_e('Noticia destacada', 'culturinfo'); ?>">
+            <section class="lead-grid is-single" aria-label="<?php esc_attr_e('Noticia principal de la edición', 'culturinfo'); ?>">
                 <article class="lead-story">
                     <a class="lead-media" href="<?php echo esc_url(get_permalink($lead)); ?>" tabindex="-1" aria-hidden="true">
-                        <?php if (has_post_thumbnail($lead)) : ?>
-                            <?php echo get_the_post_thumbnail($lead, 'culturinfo-lead'); ?>
-                        <?php else : ?>
-                            <span class="placeholder-media"></span>
-                        <?php endif; ?>
+                        <?php $lead_image = culturinfo_post_image_html($lead->ID, 'culturinfo-lead', array('loading' => 'eager', 'fetchpriority' => 'high')); ?>
+                        <?php echo $lead_image ?: '<span class="placeholder-media"></span>'; ?>
                     </a>
                     <div class="lead-content">
                         <?php if ($lead_category) : ?><span class="story-kicker"><?php echo esc_html($lead_category[0]->name); ?></span><?php endif; ?>
@@ -45,6 +66,35 @@ $lead_posts = $lead_query->posts;
                 </article>
 
             </section>
+            <?php $edition_posts = array_slice($lead_posts, 1); ?>
+            <?php if ($edition_posts) : ?>
+                <section class="edition-highlights" aria-labelledby="edition-highlights-title">
+                    <header class="section-heading">
+                        <span class="section-number">●</span>
+                        <div class="section-heading-main">
+                            <h2 id="edition-highlights-title" class="section-title"><?php esc_html_e('Destacadas de esta edición', 'culturinfo'); ?></h2>
+                            <span class="section-deck"><?php echo esc_html(sprintf(__('Publicadas desde el %s', 'culturinfo'), wp_date('j \d\e F', $edition_start->getTimestamp(), wp_timezone()))); ?></span>
+                        </div>
+                    </header>
+                    <div class="edition-grid">
+                        <?php foreach ($edition_posts as $edition_post) :
+                            $edition_categories = get_the_category($edition_post->ID);
+                            $edition_image = culturinfo_post_image_html($edition_post->ID, 'culturinfo-card');
+                        ?>
+                            <article class="edition-card">
+                                <a class="edition-card-media" href="<?php echo esc_url(get_permalink($edition_post)); ?>" tabindex="-1" aria-hidden="true">
+                                    <?php echo $edition_image ?: '<span class="placeholder-media"></span>'; ?>
+                                </a>
+                                <div class="edition-card-copy">
+                                    <?php if ($edition_categories) : ?><span class="card-category"><?php echo esc_html($edition_categories[0]->name); ?></span><?php endif; ?>
+                                    <h3><a href="<?php echo esc_url(get_permalink($edition_post)); ?>"><?php echo esc_html(get_the_title($edition_post)); ?></a></h3>
+                                    <div class="card-meta"><?php echo esc_html(get_the_date('j \d\e F, Y', $edition_post)); ?> · <?php echo esc_html(culturinfo_editorial_author_name($edition_post->ID)); ?></div>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endif; ?>
         <?php else : ?>
             <section class="lead-grid is-single" aria-label="<?php esc_attr_e('Presentación', 'culturinfo'); ?>">
                 <article class="lead-story">
@@ -79,20 +129,19 @@ $lead_posts = $lead_query->posts;
                     <span class="section-number">CI</span>
                     <div class="section-heading-main">
                         <h2 id="recent-stories-title" class="section-title"><?php esc_html_e('Últimas noticias', 'culturinfo'); ?></h2>
-                        <span class="section-deck"><?php esc_html_e('Todas las publicaciones, de la más reciente a la más antigua.', 'culturinfo'); ?></span>
+                        <span class="section-deck"><?php esc_html_e('Ediciones anteriores, de la más reciente a la más antigua.', 'culturinfo'); ?></span>
                     </div>
                 </header>
                 <?php if ($recent_query->have_posts()) : ?>
                     <div class="recent-grid">
                         <?php foreach ($recent_query->posts as $recent_post) :
                             $recent_categories = get_the_category($recent_post->ID);
+                            $recent_image = culturinfo_post_image_html($recent_post->ID, 'culturinfo-card');
                         ?>
                             <article class="recent-card">
-                                <?php if (has_post_thumbnail($recent_post)) : ?>
-                                    <a class="recent-card-media" href="<?php echo esc_url(get_permalink($recent_post)); ?>" tabindex="-1" aria-hidden="true">
-                                        <?php echo get_the_post_thumbnail($recent_post, 'culturinfo-card'); ?>
-                                    </a>
-                                <?php endif; ?>
+                                <a class="recent-card-media" href="<?php echo esc_url(get_permalink($recent_post)); ?>" tabindex="-1" aria-hidden="true">
+                                    <?php echo $recent_image ?: '<span class="placeholder-media"></span>'; ?>
+                                </a>
                                 <?php if ($recent_categories) : ?><span class="card-category"><?php echo esc_html($recent_categories[0]->name); ?></span><?php endif; ?>
                                 <h3><a href="<?php echo esc_url(get_permalink($recent_post)); ?>"><?php echo esc_html(get_the_title($recent_post)); ?></a></h3>
                                 <div class="card-meta"><?php echo esc_html(get_the_date('j \d\e F, Y', $recent_post)); ?> · <?php echo esc_html(culturinfo_editorial_author_name($recent_post->ID)); ?></div>

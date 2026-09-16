@@ -126,13 +126,24 @@ button { cursor: pointer; }
 .placeholder-media { position: absolute; inset: 0; background: radial-gradient(circle at 78% 18%, rgba(243,107,16,.5), transparent 25%), linear-gradient(135deg, #163f78, #071a3a 68%); }
 .placeholder-media::before { content: "C + I"; position: absolute; right: 7%; top: 3%; color: rgba(255,255,255,.07); font-family: var(--serif); font-size: clamp(7rem, 20vw, 18rem); line-height: 1; }
 
-/* Latest stories in the current editorial edition */
+/* Current weekly edition */
+.edition-highlights { padding: 54px 0 8px; }
+.edition-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; }
+.edition-card { overflow: hidden; background: var(--cream); border-bottom: 3px solid var(--orange); }
+.edition-card-media { position: relative; display: block; height: 275px; overflow: hidden; background: var(--navy); }
+.edition-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .45s ease; }
+.edition-card:hover img { transform: scale(1.025); }
+.edition-card-copy { padding: 22px 24px 25px; }
+.edition-card h3 { margin: 8px 0 0; font-family: var(--serif); font-size: clamp(1.55rem, 2.3vw, 2.1rem); font-weight: 500; line-height: 1.12; }
+.edition-card .card-meta { margin-top: 14px; }
+
+/* Chronological archive below the current edition */
 .recent-stories { padding: 58px 0 60px; border-bottom: 1px solid var(--line); }
 .recent-stories .section-heading { align-items: baseline; }
 .recent-stories .section-heading-main { flex-wrap: wrap; }
 .recent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px 25px; }
 .recent-card { min-width: 0; }
-.recent-card-media { display: block; height: 220px; margin-bottom: 16px; overflow: hidden; background: var(--navy); }
+.recent-card-media { position: relative; display: block; height: 190px; margin-bottom: 16px; overflow: hidden; background: var(--navy); }
 .recent-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s; }
 .recent-card:hover img { transform: scale(1.03); }
 .recent-card h3 { margin: 7px 0 0; font-family: var(--serif); font-size: 1.5rem; font-weight: 500; line-height: 1.17; }
@@ -425,6 +436,7 @@ button { cursor: pointer; }
   .newsletter-inner { grid-template-columns: 1fr; gap: 28px; }
   .archive-feature { grid-template-columns: 1fr; }
   .archive-grid { grid-template-columns: repeat(2, 1fr); }
+  .edition-card-media { height: 235px; }
   .recent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .archive-feature-media { min-height: 360px; }
   .writer-hero-inner { grid-template-columns: 170px minmax(0, 1fr); gap: 34px; }
@@ -466,9 +478,12 @@ button { cursor: pointer; }
   .archive-hero { padding: 52px 0; }
   .archive-grid { grid-template-columns: 1fr; }
   .archive-card-media { height: 250px; }
+  .edition-highlights { padding-top: 42px; }
+  .edition-grid { grid-template-columns: 1fr; }
+  .edition-card-media { height: 225px; }
   .recent-stories { padding: 42px 0 48px; }
   .recent-grid { grid-template-columns: 1fr; gap: 30px; }
-  .recent-card-media { height: 220px; }
+  .recent-card-media { height: 190px; }
   .writer-hero { padding: 52px 0; }
   .writer-hero-inner { grid-template-columns: 1fr; text-align: center; }
   .writer-portrait { width: 150px; height: 150px; margin: 0 auto; }

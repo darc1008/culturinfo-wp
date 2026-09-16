@@ -83,6 +83,63 @@ function culturinfo_sections() {
     );
 }
 
+/**
+ * Inicio de la edición semanal que contiene la fecha indicada.
+ */
+function culturinfo_edition_start($reference = null) {
+    $settings = get_option('culturinfo_publishing_settings', array());
+    $settings = is_array($settings) ? $settings : array();
+    $day = isset($settings['default_day']) && is_scalar($settings['default_day'])
+        ? min(6, max(0, absint($settings['default_day']))) : 6;
+
+    $reference = $reference instanceof DateTimeInterface
+        ? DateTimeImmutable::createFromInterface($reference)->setTimezone(wp_timezone())
+        : current_datetime();
+    $days_back = ((int) $reference->format('w') - $day + 7) % 7;
+    return $reference->setTime(0, 0, 0)->modify('-' . $days_back . ' days');
+}
+
+/**
+ * Imagen editorial: destacada, primera imagen del contenido o cadena vacía.
+ */
+function culturinfo_post_image_html($post_id, $size = 'culturinfo-card', $attributes = array()) {
+    $post_id = absint($post_id);
+    $attributes = is_array($attributes) ? $attributes : array();
+    if (has_post_thumbnail($post_id)) {
+        return get_the_post_thumbnail($post_id, $size, $attributes);
+    }
+
+    $content = (string) get_post_field('post_content', $post_id);
+    if (preg_match('/\bwp-image-([0-9]+)\b/', $content, $match)) {
+        $attachment_id = absint($match[1]);
+        if ($attachment_id && wp_attachment_is_image($attachment_id)) {
+            return wp_get_attachment_image($attachment_id, $size, false, $attributes);
+        }
+    }
+
+    if (!preg_match('/<img\b[^>]*\bsrc=(["\'])(.*?)\1/i', $content, $match)) {
+        return '';
+    }
+    $src = esc_url($match[2]);
+    if (!$src) {
+        return '';
+    }
+
+    $attributes = wp_parse_args($attributes, array(
+        'alt'      => get_the_title($post_id),
+        'loading'  => 'lazy',
+        'decoding' => 'async',
+    ));
+    $attribute_html = '';
+    foreach ($attributes as $name => $value) {
+        if (!is_scalar($value) || $value === '') {
+            continue;
+        }
+        $attribute_html .= sprintf(' %s="%s"', esc_attr($name), esc_attr((string) $value));
+    }
+    return sprintf('<img src="%s"%s>', $src, $attribute_html);
+}
+
 function culturinfo_section_data($slug = '') {
     $sections = culturinfo_sections();
     return isset($sections[$slug]) ? $sections[$slug] : array(

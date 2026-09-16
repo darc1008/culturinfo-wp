@@ -4,7 +4,7 @@ WordPress autoalojado para **Culturinfo**, periódico digital de Horizonte Cultu
 
 ## Identidad editorial
 
-El repositorio incluye el tema propio **Culturinfo Editorial**, diseñado a partir del logo azul y naranja del proyecto. La portada destaca la publicación más reciente y continúa con todas las noticias en orden cronológico y con paginación. Las seis secciones están disponibles desde el menú y cada una dispone de una página de archivo dedicada:
+El repositorio incluye el tema propio **Culturinfo Editorial**, diseñado a partir del logo azul y naranja del proyecto. La portada destaca todas las publicaciones de la edición semanal vigente y continúa con las noticias anteriores en orden cronológico y con paginación. Las seis secciones están disponibles desde el menú y cada una dispone de una página de archivo dedicada:
 
 - Con Palabras
 - Arte Plural
@@ -21,7 +21,7 @@ El plugin propio `Culturinfo — Gestor de anuncios` agrega la opción **Anuncio
 
 El editor elige su ubicación desde una lista de espacios disponibles:
 
-- Portada: antes o después de la noticia destacada, después de las últimas noticias, después de las más leídas y antes del bloque final.
+- Portada: antes o después de las destacadas de la edición, después de las últimas noticias, después de las más leídas y antes del bloque final.
 - Secciones: después del encabezado, después de la noticia destacada o al final del listado.
 - Noticias: después del titular, dentro del contenido, al terminar el artículo o en la columna lateral.
 
