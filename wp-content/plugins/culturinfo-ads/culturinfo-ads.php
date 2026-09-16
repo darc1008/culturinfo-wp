@@ -56,9 +56,9 @@ register_activation_hook(__FILE__, 'culturinfo_ads_grant_capabilities');
 function culturinfo_ads_slots() {
     return array(
         'home_after_header'       => 'Portada — antes de la noticia principal',
-        'home_after_lead'         => 'Portada — después de las noticias destacadas',
-        'home_between_sections_2' => 'Portada — después de la segunda sección',
-        'home_between_sections_4' => 'Portada — después de la cuarta sección',
+        'home_after_lead'         => 'Portada — después de la noticia destacada',
+        'home_between_sections_2' => 'Portada — después de las últimas noticias',
+        'home_between_sections_4' => 'Portada — después de las más leídas',
         'home_before_footer'      => 'Portada — antes del bloque final',
         'section_after_header'    => 'Sección — después del encabezado',
         'section_after_feature'   => 'Sección — después de la noticia destacada',
