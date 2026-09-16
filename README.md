@@ -212,6 +212,12 @@ papelera después de 90 días. Solo administradores y editores pueden acceder.
 7. Desplegar. El contenedor instala o migra WordPress, activa el tema, crea las
    secciones y configura el menú automáticamente.
 
+Las noticias de demostración están desactivadas por defecto y no se recrean en
+los redespliegues. Solo para montar una instalación de muestra, se puede definir
+`CULTURINFO_SEED_DEMO_CONTENT=true`; el seed guarda un marcador en la base de
+datos después de la primera carga y no vuelve a insertar esos artículos. En
+producción debe conservarse en `false` o dejarse sin definir.
+
 ## Respaldos automáticos
 
 El contenedor puede crear diariamente un paquete restaurable sin interrumpir el
@@ -300,7 +306,7 @@ comentarios no aceptan adjuntos.
 ```text
 wp-content/themes/culturinfo/  Tema editorial a medida
 seed/seed.sh                   Inicialización idempotente
-seed/articles/                 Contenido inicial de demostración
+seed/articles/                 Contenido opcional de demostración
 entrypoint.sh                  Arranque de MariaDB, WordPress y Apache
 Dockerfile                     Imagen de producción
 ```

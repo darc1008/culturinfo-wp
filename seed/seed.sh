@@ -204,55 +204,67 @@ parse_categories() {
   parse_frontmatter "$FILE" categories | tr -d '[] ' | tr ',' ' '
 }
 
-echo "==> Contenido inicial"
-DEFAULT_AUTHOR_ID=$(wp user get "${WP_ADMIN_USER:-admin}" --field=ID --allow-root 2>/dev/null || true)
-if [ -z "$DEFAULT_AUTHOR_ID" ]; then
-  echo "ERROR: no se encontró el usuario autor ${WP_ADMIN_USER:-admin}"
-  exit 1
+DEMO_CONTENT_SETTING="${CULTURINFO_SEED_DEMO_CONTENT:-false}"
+DEMO_CONTENT_SETTING="${DEMO_CONTENT_SETTING,,}"
+DEMO_CONTENT_SEEDED=$(wp option get culturinfo_demo_content_seeded --allow-root 2>/dev/null || true)
+
+if [[ "$DEMO_CONTENT_SETTING" =~ ^(1|true|yes|on)$ ]] && [ "$DEMO_CONTENT_SEEDED" != "1" ]; then
+  echo "==> Contenido inicial de demostración"
+  DEFAULT_AUTHOR_ID=$(wp user get "${WP_ADMIN_USER:-admin}" --field=ID --allow-root 2>/dev/null || true)
+  if [ -z "$DEFAULT_AUTHOR_ID" ]; then
+    echo "ERROR: no se encontró el usuario autor ${WP_ADMIN_USER:-admin}"
+    exit 1
+  fi
+
+  for FILE in /seed/articles/*.md; do
+    [ -f "$FILE" ] || continue
+    SLUG=$(parse_frontmatter "$FILE" slug)
+    [ -n "$SLUG" ] || SLUG=$(basename "$FILE" .md | sed 's/^[0-9]*-//')
+    TITLE=$(parse_frontmatter "$FILE" title)
+    EXCERPT=$(parse_frontmatter "$FILE" excerpt)
+    CATEGORY_SLUGS=$(parse_categories "$FILE")
+    POST_ID=$(wp post list --post_type=post --post_status=any --name="$SLUG" --field=ID --allow-root 2>/dev/null | head -1)
+
+    if [ -z "$POST_ID" ]; then
+      BODY_FILE="/tmp/culturinfo-${SLUG}.html"
+      awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" \
+        | sed 's/^#\+[[:space:]]*//' \
+        | sed 's/\*\*//g' \
+        | sed 's/^>[[:space:]]*//' > "$BODY_FILE"
+      POST_ID=$(wp post create "$BODY_FILE" \
+        --post_type=post \
+        --post_status=publish \
+        --post_title="$TITLE" \
+        --post_name="$SLUG" \
+        --post_excerpt="$EXCERPT" \
+        --post_author="$DEFAULT_AUTHOR_ID" \
+        --porcelain \
+        --allow-root)
+      echo "  + $TITLE"
+    fi
+
+    POST_AUTHOR_ID=$(wp post get "$POST_ID" --field=post_author --allow-root 2>/dev/null || true)
+    if [ "$POST_AUTHOR_ID" = "0" ]; then
+      wp post update "$POST_ID" --post_author="$DEFAULT_AUTHOR_ID" --allow-root >/dev/null
+    fi
+
+    if [ -n "$CATEGORY_SLUGS" ]; then
+      wp post term set "$POST_ID" category $CATEGORY_SLUGS --by=slug --allow-root >/dev/null
+    fi
+
+    CURRENT_THUMB=$(wp post meta get "$POST_ID" _thumbnail_id --allow-root 2>/dev/null || true)
+    IMG_URL=$(parse_frontmatter "$FILE" featured_image)
+    if [ -z "$CURRENT_THUMB" ] && [ -n "$IMG_URL" ]; then
+      wp media import "$IMG_URL" --post_id="$POST_ID" --featured_image --allow-root >/dev/null 2>&1 || true
+    fi
+  done
+
+  wp option update culturinfo_demo_content_seeded 1 --autoload=no --allow-root >/dev/null
+elif [ "$DEMO_CONTENT_SEEDED" = "1" ]; then
+  echo "==> Contenido de demostración ya inicializado; no se modifica"
+else
+  echo "==> Contenido de demostración desactivado"
 fi
-
-for FILE in /seed/articles/*.md; do
-  [ -f "$FILE" ] || continue
-  SLUG=$(parse_frontmatter "$FILE" slug)
-  [ -n "$SLUG" ] || SLUG=$(basename "$FILE" .md | sed 's/^[0-9]*-//')
-  TITLE=$(parse_frontmatter "$FILE" title)
-  EXCERPT=$(parse_frontmatter "$FILE" excerpt)
-  CATEGORY_SLUGS=$(parse_categories "$FILE")
-  POST_ID=$(wp post list --post_type=post --name="$SLUG" --field=ID --allow-root 2>/dev/null | head -1)
-
-  if [ -z "$POST_ID" ]; then
-    BODY_FILE="/tmp/culturinfo-${SLUG}.html"
-    awk 'BEGIN{fm=0} /^---$/{fm=!fm; next} !fm{print}' "$FILE" \
-      | sed 's/^#\+[[:space:]]*//' \
-      | sed 's/\*\*//g' \
-      | sed 's/^>[[:space:]]*//' > "$BODY_FILE"
-    POST_ID=$(wp post create "$BODY_FILE" \
-      --post_type=post \
-      --post_status=publish \
-      --post_title="$TITLE" \
-      --post_name="$SLUG" \
-      --post_excerpt="$EXCERPT" \
-      --post_author="$DEFAULT_AUTHOR_ID" \
-      --porcelain \
-      --allow-root)
-    echo "  + $TITLE"
-  fi
-
-  POST_AUTHOR_ID=$(wp post get "$POST_ID" --field=post_author --allow-root 2>/dev/null || true)
-  if [ "$POST_AUTHOR_ID" = "0" ]; then
-    wp post update "$POST_ID" --post_author="$DEFAULT_AUTHOR_ID" --allow-root >/dev/null
-  fi
-
-  if [ -n "$CATEGORY_SLUGS" ]; then
-    wp post term set "$POST_ID" category $CATEGORY_SLUGS --by=slug --allow-root >/dev/null
-  fi
-
-  CURRENT_THUMB=$(wp post meta get "$POST_ID" _thumbnail_id --allow-root 2>/dev/null || true)
-  IMG_URL=$(parse_frontmatter "$FILE" featured_image)
-  if [ -z "$CURRENT_THUMB" ] && [ -n "$IMG_URL" ]; then
-    wp media import "$IMG_URL" --post_id="$POST_ID" --featured_image --allow-root >/dev/null 2>&1 || true
-  fi
-done
 
 echo "==> Encolando audios pendientes"
 wp eval 'if (function_exists("culturinfo_audio_enqueue_existing")) { culturinfo_audio_enqueue_existing(); }' --allow-root >/dev/null
