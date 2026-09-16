@@ -11,7 +11,7 @@ $sections = array(
     'con-palabras'                  => 'Con Palabras',
     'arte-plural'                   => 'Arte Plural',
     'reflexiones-filo-linguisticas' => 'Reflexiones Filo-lingüísticas',
-    'anfora-cultura'                => 'Ánfora Cultura',
+    'anfora-cultural'               => 'Ánfora Cultural',
     'ventana-social'                => 'Ventana Social',
     'aula-abierta'                  => 'Aula Abierta',
 );
@@ -46,15 +46,24 @@ $removed = 0;
 $position = 1;
 
 foreach ($sections as $slug => $title) {
-    $expected_path = '/category/' . $slug;
+    $accepted_slugs = array($slug);
+    if ($slug === 'anfora-cultural') {
+        $accepted_slugs[] = 'anfora-cultura';
+    }
     $matches = array();
 
     foreach ($items as $item) {
         $item_path = wp_parse_url((string) $item->url, PHP_URL_PATH);
         $item_path = '/' . trim(rawurldecode((string) $item_path), '/');
-        $is_expected_url = untrailingslashit($item_path) === $expected_path;
+        $is_expected_url = false;
+        foreach ($accepted_slugs as $accepted_slug) {
+            if (untrailingslashit($item_path) === '/category/' . $accepted_slug) {
+                $is_expected_url = true;
+                break;
+            }
+        }
         $is_expected_term = $item->object === 'category'
-            && get_term_field('slug', (int) $item->object_id, 'category') === $slug;
+            && in_array(get_term_field('slug', (int) $item->object_id, 'category'), $accepted_slugs, true);
 
         if ($is_expected_url || $is_expected_term) {
             $matches[] = $item;
@@ -95,7 +104,8 @@ foreach ($items as $item) {
     $item_path = wp_parse_url((string) $item->url, PHP_URL_PATH);
     $item_path = '/' . trim(rawurldecode((string) $item_path), '/');
     $is_managed = false;
-    foreach (array_keys($sections) as $slug) {
+    $managed_slugs = array_merge(array_keys($sections), array('anfora-cultura'));
+    foreach ($managed_slugs as $slug) {
         if (untrailingslashit($item_path) === '/category/' . $slug) {
             $is_managed = true;
             break;

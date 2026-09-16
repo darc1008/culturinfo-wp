@@ -2,7 +2,7 @@
 title: "La memoria también se modela: ceramistas que mantienen vivo un oficio ancestral"
 slug: memoria-ceramica-oficio-ancestral
 date: 2026-07-09 11:30:00
-categories: [anfora-cultura]
+categories: [anfora-cultural]
 tags: [patrimonio, memoria, ceramica]
 status: publish
 featured_image: https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=1200

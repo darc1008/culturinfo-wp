@@ -9,7 +9,7 @@ El repositorio incluye el tema propio **Culturinfo Editorial**, diseñado a part
 - Con Palabras
 - Arte Plural
 - Reflexiones Filo-lingüísticas
-- Ánfora Cultura
+- Ánfora Cultural
 - Ventana Social
 - Aula Abierta
 

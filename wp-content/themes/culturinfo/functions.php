@@ -62,8 +62,8 @@ function culturinfo_sections() {
             'description' => 'Ideas sobre lenguaje, pensamiento y los significados que construyen el mundo.',
             'accent'      => '#41796f',
         ),
-        'anfora-cultura' => array(
-            'name'        => 'Ánfora Cultura',
+        'anfora-cultural' => array(
+            'name'        => 'Ánfora Cultural',
             'number'      => '04',
             'description' => 'Patrimonio, memoria e identidad: el legado cultural puesto en conversación.',
             'accent'      => '#9b642d',
@@ -132,6 +132,27 @@ function culturinfo_primary_menu_fallback() {
     }
     echo '</ul>';
 }
+
+function culturinfo_legacy_category_redirect() {
+    if (!is_404()) {
+        return;
+    }
+
+    $request_path = isset($_SERVER['REQUEST_URI'])
+        ? wp_parse_url(wp_unslash($_SERVER['REQUEST_URI']), PHP_URL_PATH)
+        : '';
+    $legacy_path = wp_parse_url(home_url('/category/anfora-cultura/'), PHP_URL_PATH);
+    if (untrailingslashit((string) $request_path) !== untrailingslashit((string) $legacy_path)) {
+        return;
+    }
+
+    $category = get_category_by_slug('anfora-cultural');
+    if ($category) {
+        wp_safe_redirect(get_category_link($category->term_id), 301);
+        exit;
+    }
+}
+add_action('template_redirect', 'culturinfo_legacy_category_redirect');
 
 function culturinfo_excerpt_length($length) {
     return 28;

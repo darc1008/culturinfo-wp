@@ -164,11 +164,12 @@ wp eval-file /seed/configure_rank_math.php --allow-root
 wp rewrite flush --hard --allow-root
 
 echo "==> Secciones editoriales"
+wp eval-file /seed/migrate_anfora.php --allow-root
 declare -A SECTIONS=(
   [con-palabras]="Con Palabras"
   [arte-plural]="Arte Plural"
   [reflexiones-filo-linguisticas]="Reflexiones Filo-lingüísticas"
-  [anfora-cultura]="Ánfora Cultura"
+  [anfora-cultural]="Ánfora Cultural"
   [ventana-social]="Ventana Social"
   [aula-abierta]="Aula Abierta"
 )
@@ -176,11 +177,11 @@ declare -A DESCRIPTIONS=(
   [con-palabras]="Crónicas, entrevistas y relatos donde la palabra abre nuevas maneras de mirar."
   [arte-plural]="Creación, lenguajes artísticos y las voces que transforman nuestra sensibilidad."
   [reflexiones-filo-linguisticas]="Ideas sobre lenguaje, pensamiento y los significados que construyen el mundo."
-  [anfora-cultura]="Patrimonio, memoria e identidad: el legado cultural puesto en conversación."
+  [anfora-cultural]="Patrimonio, memoria e identidad: el legado cultural puesto en conversación."
   [ventana-social]="La sociedad en movimiento, sus desafíos y las iniciativas que generan encuentro."
   [aula-abierta]="Educación sin fronteras: herramientas, experiencias y saberes para compartir."
 )
-SECTION_ORDER=(con-palabras arte-plural reflexiones-filo-linguisticas anfora-cultura ventana-social aula-abierta)
+SECTION_ORDER=(con-palabras arte-plural reflexiones-filo-linguisticas anfora-cultural ventana-social aula-abierta)
 
 for SLUG in "${SECTION_ORDER[@]}"; do
   if ! wp term get category "$SLUG" --by=slug --allow-root >/dev/null 2>&1; then
