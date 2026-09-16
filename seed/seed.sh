@@ -1,6 +1,7 @@
 #!/bin/bash
 # Culturinfo — inicialización idempotente de WordPress.
 set -e
+SEED_STARTED_AT=$SECONDS
 
 DB_HOST="${WORDPRESS_DB_HOST:-127.0.0.1}"
 DB_USER="${WORDPRESS_DB_USER:-culturinfo}"
@@ -56,6 +57,18 @@ if ! wp core is-installed --allow-root >/dev/null 2>&1; then
     --skip-email \
     --allow-root
 fi
+
+CULTURINFO_SEED_VERSION="2026.09.16.1"
+CURRENT_SEED_VERSION=$(wp option get culturinfo_seed_version --allow-root 2>/dev/null || true)
+if [ "$CURRENT_SEED_VERSION" = "$CULTURINFO_SEED_VERSION" ]; then
+  echo "==> Inicialización $CULTURINFO_SEED_VERSION ya aplicada; ejecutando verificación rápida"
+  wp eval-file /seed/configure_runtime.php --allow-root
+  echo "==> ✓ Culturinfo listo (verificación rápida en $((SECONDS - SEED_STARTED_AT))s)"
+  exit 0
+fi
+
+touch /tmp/culturinfo-full-seed
+echo "==> Aplicando inicialización completa $CULTURINFO_SEED_VERSION"
 
 echo "==> Idioma de WordPress"
 WP_LOCALE="${WP_LOCALE:-es_ES}"
@@ -278,6 +291,7 @@ SAMPLE_ID=$(wp post list --post_type=page --name="sample-page" --field=ID --allo
 [ -n "$SAMPLE_ID" ] && wp post delete "$SAMPLE_ID" --force --allow-root >/dev/null 2>&1 || true
 wp post delete 1 --force --allow-root >/dev/null 2>&1 || true
 
-echo "==> ✓ Culturinfo listo"
 wp theme status culturinfo --allow-root | head -4
 wp post list --post_type=post --post_status=publish --format=count --allow-root
+wp option update culturinfo_seed_version "$CULTURINFO_SEED_VERSION" --autoload=no --allow-root >/dev/null
+echo "==> ✓ Culturinfo listo (inicialización completa en $((SECONDS - SEED_STARTED_AT))s)"

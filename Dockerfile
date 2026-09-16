@@ -61,6 +61,7 @@ COPY seed/articles /seed/articles
 COPY seed/assign_menu.php /seed/assign_menu.php
 COPY seed/configure_menu.php /seed/configure_menu.php
 COPY seed/migrate_anfora.php /seed/migrate_anfora.php
+COPY seed/configure_runtime.php /seed/configure_runtime.php
 COPY seed/configure_proxy.php /seed/configure_proxy.php
 COPY seed/configure_security.php /seed/configure_security.php
 COPY seed/configure_rank_math.php /seed/configure_rank_math.php

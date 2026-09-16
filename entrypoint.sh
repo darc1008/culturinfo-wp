@@ -1,6 +1,7 @@
 #!/bin/bash
 # culturinfo - Entrypoint: inicializa MariaDB local, ejecuta seed, arranca Apache
 set -euo pipefail
+ENTRYPOINT_STARTED_AT=$SECONDS
 
 echo "[entrypoint] Iniciando culturinfo..."
 
@@ -89,21 +90,32 @@ for plugin in culturinfo-ads culturinfo-authors culturinfo-stats culturinfo-publ
 done
 
 # Asegurar permisos
-chown -R mysql:mysql /var/lib/mysql /var/run/mysqld
+DB_PERMISSIONS_MARKER="/var/lib/mysql/.culturinfo-permissions-1"
+if [ ! -f "$DB_PERMISSIONS_MARKER" ]; then
+  echo "[entrypoint] Normalizando permisos de MariaDB..."
+  chown -R mysql:mysql /var/lib/mysql /var/run/mysqld
+  touch "$DB_PERMISSIONS_MARKER"
+  chown mysql:mysql "$DB_PERMISSIONS_MARKER"
+else
+  chown mysql:mysql /var/lib/mysql /var/run/mysqld
+fi
 
 # Iniciar MariaDB
 echo "[entrypoint] Iniciando MariaDB..."
 /usr/bin/mysqld_safe --datadir=/var/lib/mysql --user=mysql > /var/log/mariadb-startup.log 2>&1 &
-sleep 5
 
 # Esperar a MariaDB
-for i in $(seq 1 20); do
+for i in $(seq 1 30); do
   if mysqladmin ping --silent 2>/dev/null; then
     echo "[entrypoint] MariaDB OK"
     break
   fi
   sleep 1
 done
+if ! mysqladmin ping --silent 2>/dev/null; then
+  echo "ERROR: MariaDB no respondió después de 30 segundos"
+  exit 1
+fi
 
 # Crear DB y usuario si no existen
 mysql -uroot <<EOSQL
@@ -195,12 +207,24 @@ if [ "$UPLOADS_REAL" != "$UPLOADS_DIR" ]; then
 fi
 
 echo "[entrypoint] Ajustando permisos de medios..."
-find "$UPLOADS_REAL" -xdev -type d -exec chown www-data:www-data {} + -exec chmod 775 {} +
-find "$UPLOADS_REAL" -xdev -type f -exec chown www-data:www-data {} + -exec chmod 664 {} +
+PERMISSIONS_VERSION="2"
+PERMISSIONS_MARKER="/var/www/html/.culturinfo-permissions-${PERMISSIONS_VERSION}"
+if [ -f /tmp/culturinfo-full-seed ] || [ ! -f "$PERMISSIONS_MARKER" ]; then
+  echo "[entrypoint] Normalizando permisos completos..."
+  find "$UPLOADS_REAL" -xdev -type d -exec chown www-data:www-data {} + -exec chmod 775 {} +
+  find "$UPLOADS_REAL" -xdev -type f -exec chown www-data:www-data {} + -exec chmod 664 {} +
 
-echo "[entrypoint] Bloqueando core, temas y plugins contra escritura web..."
-find /var/www/html -xdev -path "$UPLOADS_REAL" -prune -o -type d -exec chown root:www-data {} + -exec chmod 755 {} +
-find /var/www/html -xdev -path "$UPLOADS_REAL" -prune -o -type f -exec chown root:www-data {} + -exec chmod 644 {} +
+  echo "[entrypoint] Bloqueando core, temas y plugins contra escritura web..."
+  find /var/www/html -xdev -path "$UPLOADS_REAL" -prune -o -type d -exec chown root:www-data {} + -exec chmod 755 {} +
+  find /var/www/html -xdev -path "$UPLOADS_REAL" -prune -o -type f -exec chown root:www-data {} + -exec chmod 644 {} +
+  touch "$PERMISSIONS_MARKER"
+  chown root:www-data "$PERMISSIONS_MARKER"
+  chmod 644 "$PERMISSIONS_MARKER"
+else
+  echo "[entrypoint] Permisos versionados ya aplicados; omitiendo recorrido completo"
+  chown www-data:www-data "$UPLOADS_REAL"
+  chmod 775 "$UPLOADS_REAL"
+fi
 chown root:www-data /var/www/html/wp-config.php
 chmod 640 /var/www/html/wp-config.php
 
@@ -215,5 +239,5 @@ else
 fi
 
 # Iniciar Apache
-echo "[entrypoint] Iniciando Apache..."
+echo "[entrypoint] Iniciando Apache después de $((SECONDS - ENTRYPOINT_STARTED_AT))s de preparación..."
 exec apache2-foreground

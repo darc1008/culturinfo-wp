@@ -218,6 +218,15 @@ los redespliegues. Solo para montar una instalación de muestra, se puede defini
 datos después de la primera carga y no vuelve a insertar esos artículos. En
 producción debe conservarse en `false` o dejarse sin definir.
 
+El primer despliegue de una versión de inicialización ejecuta todas las
+migraciones, configuraciones y controles de permisos antes de iniciar Apache.
+Cuando termina correctamente guarda `culturinfo_seed_version` en WordPress; los
+redespliegues siguientes hacen una sola verificación rápida de identidad, tema,
+plugins y enlaces permanentes. Si un cambio futuro modifica categorías, plugins,
+ajustes iniciales o migraciones, se debe incrementar `CULTURINFO_SEED_VERSION` en
+`seed/seed.sh`. Los permisos completos también se recalculan automáticamente en
+ese primer arranque versionado, no en cada redespliegue.
+
 ## Respaldos automáticos
 
 El contenedor puede crear diariamente un paquete restaurable sin interrumpir el
