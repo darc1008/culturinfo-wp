@@ -41,7 +41,8 @@ COPY licenses/es_MX-claude-high.MODEL_CARD.md /opt/culturinfo/voices/MODEL_CARD.
 RUN echo 'memory_limit = 256M' > /usr/local/etc/php/conf.d/zz-wp-limits.ini \
     && echo 'upload_max_filesize = 64M' >> /usr/local/etc/php/conf.d/zz-wp-limits.ini \
     && echo 'post_max_size = 64M' >> /usr/local/etc/php/conf.d/zz-wp-limits.ini \
-    && echo 'max_execution_time = 120' >> /usr/local/etc/php/conf.d/zz-wp-limits.ini
+    && echo 'max_execution_time = 120' >> /usr/local/etc/php/conf.d/zz-wp-limits.ini \
+    && echo 'session.upload_progress.enabled = Off' >> /usr/local/etc/php/conf.d/zz-wp-limits.ini
 
 # MariaDB runtime config
 RUN mkdir -p /var/run/mysqld /var/lib/mysql \
