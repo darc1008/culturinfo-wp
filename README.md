@@ -190,7 +190,7 @@ papelera después de 90 días. Solo administradores y editores pueden acceder.
 
 ## Stack
 
-- WordPress 7.0.2 (PHP 8.3 + Apache)
+- WordPress 7.1.3 (PHP 8.3 + Apache)
 - MariaDB
 - Piper 1.7 + voz neuronal española y LAME
 - Tema: Culturinfo Editorial
@@ -257,7 +257,7 @@ no están habilitados o `/backups` no está realmente montado, de modo que una
 configuración incompleta no actualice producción sin punto de recuperación.
 Si la base todavía no contiene una instalación, el contenedor conserva
 `wp-content` y `wp-config.php`, sustituye únicamente el core antiguo por el core
-7.0.2 de la imagen y deja que el seed complete la instalación inicial.
+7.1.3 de la imagen y deja que el seed complete la instalación inicial.
 
 Se puede crear una copia manual desde la terminal del contenedor con:
 

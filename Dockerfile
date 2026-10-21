@@ -1,13 +1,13 @@
-FROM wordpress:7.0.2-php8.3-apache AS core-package
+FROM wordpress:7.1.3-php8.3-apache AS core-package
 
 RUN apt-get update && apt-get install -y --no-install-recommends zip \
     && mkdir -p /tmp/culturinfo-core/wordpress /opt/culturinfo/core \
     && find /usr/src/wordpress -mindepth 1 -maxdepth 1 ! -name wp-content \
         -exec cp -a {} /tmp/culturinfo-core/wordpress/ \; \
     && cd /tmp/culturinfo-core \
-    && zip -qr /opt/culturinfo/core/wordpress-7.0.2-no-content.zip wordpress
+    && zip -qr /opt/culturinfo/core/wordpress-7.1.3-no-content.zip wordpress
 
-FROM wordpress:7.0.2-php8.3-apache
+FROM wordpress:7.1.3-php8.3-apache
 
 # Install MariaDB, audio runtime and wp-cli
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -75,7 +75,7 @@ COPY wp-content/plugins/culturinfo-publishing /opt/culturinfo/plugins/culturinfo
 COPY wp-content/plugins/culturinfo-contact /opt/culturinfo/plugins/culturinfo-contact
 COPY wp-content/plugins/culturinfo-audio /opt/culturinfo/plugins/culturinfo-audio
 COPY wp-content/plugins/culturinfo-security /opt/culturinfo/plugins/culturinfo-security
-COPY --from=core-package /opt/culturinfo/core/wordpress-7.0.2-no-content.zip /opt/culturinfo/core/wordpress-7.0.2-no-content.zip
+COPY --from=core-package /opt/culturinfo/core/wordpress-7.1.3-no-content.zip /opt/culturinfo/core/wordpress-7.1.3-no-content.zip
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY audio-worker.sh /usr/local/bin/audio-worker.sh
 COPY culturinfo-backup.sh /usr/local/bin/culturinfo-backup.sh
